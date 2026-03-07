@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
 type TodoKind = "date" | "someday" | "quick" | "project";
 type RoutineGroup = "morning" | "day" | "night";
@@ -243,7 +243,7 @@ function getStoredTodos() {
   const raw = window.localStorage.getItem(TODO_STORAGE_KEY);
   const parsed = parseJson<unknown[]>(raw, []);
   return parsed
-    .map((item) => {
+    .map((item): Todo | null => {
       const old = item as Partial<Todo> & {
         text?: unknown;
         done?: unknown;
@@ -290,7 +290,7 @@ function getStoredRoutines() {
   if (parsed.length === 0) return defaultRoutines;
 
   return parsed
-    .map((item) => {
+    .map((item): Routine | null => {
       const old = item as Partial<Routine> & {
         text?: unknown;
         completedOn?: unknown;
@@ -333,7 +333,7 @@ function getStoredSchedule() {
     [],
   );
   return parsed
-    .map((item) => {
+    .map((item): ScheduleItem | null => {
       const old = item as Partial<ScheduleItem> & {
         title?: unknown;
         date?: unknown;
@@ -369,7 +369,7 @@ function getStoredProjects() {
     [],
   );
   return parsed
-    .map((item) => {
+    .map((item): Project | null => {
       const old = item as Partial<Project> & {
         title?: unknown;
         goal?: unknown;
@@ -1231,9 +1231,9 @@ function HomePage() {
       const settled = await Promise.allSettled(
         urls.map((url) => fetchSingleAppleIcsEvents(url, startDate, endDate)),
       );
-      const successItems = settled
-        .filter((entry): entry is PromiseFulfilledResult<ScheduleViewItem[]> => entry.status === "fulfilled")
-        .flatMap((entry) => entry.value);
+      const successItems: ScheduleViewItem[] = settled.flatMap((entry) =>
+        entry.status === "fulfilled" ? entry.value : [],
+      );
       const failedItems = settled.filter((entry) => entry.status === "rejected");
 
       const sortedItems = successItems.sort((a, b) =>
@@ -1494,7 +1494,7 @@ function HomePage() {
             }>;
           };
           const items =
-            data.items?.map((event) => {
+            data.items?.map((event): ScheduleViewItem => {
               const startDate =
                 event.start?.date ?? event.start?.dateTime?.slice(0, 10) ?? scheduleDateInput;
               const startTime = event.start?.dateTime
@@ -1505,13 +1505,11 @@ function HomePage() {
                 title: event.summary?.trim() || "(제목 없음)",
                 date: startDate,
                 time: startTime,
+                source: "google",
                 calendarName: cal.summary,
                 calendarColor: cal.backgroundColor,
                 googleCalendarId: cal.id,
                 googleEventId: event.id,
-              } satisfies ScheduleItem & {
-                calendarName?: string;
-                calendarColor?: string;
               };
             }) ?? [];
           calendarCounts.push({ name: cal.summary, count: items.length });
@@ -1570,14 +1568,15 @@ function HomePage() {
           setGoogleError("Google 계정 연결에 실패했어요.");
           return;
         }
+        const accessToken = resp.access_token;
         const expiresAt = Date.now() + (resp.expires_in ?? 3600) * 1000;
-        setGoogleAccessToken(resp.access_token);
+        setGoogleAccessToken(accessToken);
         setGoogleTokenExpiresAt(expiresAt);
         void (async () => {
-          const calendars = await fetchGoogleCalendarList(resp.access_token);
+          const calendars = await fetchGoogleCalendarList(accessToken);
           const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
           await syncGoogleTodayEvents(
-            resp.access_token,
+            accessToken,
             calendars,
             range.start,
             range.end,
@@ -2070,6 +2069,12 @@ function HomePage() {
     backgroundColor: currentAccent.soft,
     color: "#444444",
   };
+  const pageStyle: CSSProperties & Record<string, string> = {
+    background: currentTheme.background,
+    ...currentTheme.vars,
+    "--accent": currentAccent.accent,
+    "--accent-soft": currentAccent.soft,
+  };
   const allGoogleCalendarsSelected =
     googleCalendars.length > 0 &&
     googleCalendarFilterIds.length === googleCalendars.length;
@@ -2083,15 +2088,7 @@ function HomePage() {
       : undefined;
 
   return (
-    <div
-      className="min-h-screen px-3 py-4 md:px-5 md:py-8"
-      style={{
-        background: currentTheme.background,
-        ...currentTheme.vars,
-        "--accent": currentAccent.accent,
-        "--accent-soft": currentAccent.soft,
-      }}
-    >
+    <div className="min-h-screen px-3 py-4 md:px-5 md:py-8" style={pageStyle}>
       <main
         className="mx-auto min-h-[calc(100dvh-7.25rem)] max-w-6xl overflow-visible rounded-lg border border-line bg-surface/95 p-4 text-sm shadow-[0_18px_40px_rgba(20,19,17,0.08)] backdrop-blur-sm md:h-[calc(100dvh-7.25rem)] md:overflow-hidden md:p-5"
         style={

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
 
 type Project = {
   id: string;
@@ -411,6 +411,12 @@ function ProjectDetailPage() {
     backgroundColor: currentAccent.accent,
     color: "#444444",
   };
+  const pageStyle: CSSProperties & Record<string, string> = {
+    background: currentTheme.background,
+    ...currentTheme.vars,
+    "--accent": currentAccent.accent,
+    "--accent-soft": currentAccent.soft,
+  };
   const softButtonStyle = {
     backgroundColor: currentAccent.soft,
     color: "#444444",
@@ -664,15 +670,7 @@ function ProjectDetailPage() {
   }
 
   return (
-    <div
-      className="min-h-screen px-3 py-4 md:px-5 md:py-8"
-      style={{
-        background: currentTheme.background,
-        ...currentTheme.vars,
-        "--accent": currentAccent.accent,
-        "--accent-soft": currentAccent.soft,
-      }}
-    >
+    <div className="min-h-screen px-3 py-4 md:px-5 md:py-8" style={pageStyle}>
       <main
         className="mx-auto max-w-6xl rounded-lg border border-[#eeeeee] bg-white/80 p-4 text-sm shadow-[0_18px_40px_rgba(20,19,17,0.08)] md:p-5"
         style={

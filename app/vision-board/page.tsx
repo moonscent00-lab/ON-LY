@@ -1,7 +1,15 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  CSSProperties,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 type MoodTheme = "neutral" | "coral" | "yellow" | "blue";
 type AccentTone = "neutral" | "coral" | "yellow" | "blue";
@@ -674,8 +682,9 @@ export default function VisionBoardPage() {
 
   useEffect(() => {
     if (!draggingArea) return;
+    const activeArea = draggingArea;
     function onMove(event: PointerEvent) {
-      updateScoreByPointer(event.clientX, event.clientY, draggingArea);
+      updateScoreByPointer(event.clientX, event.clientY, activeArea);
     }
     function onUp() {
       setDraggingArea(null);
@@ -688,16 +697,15 @@ export default function VisionBoardPage() {
     };
   }, [draggingArea]);
 
+  const pageStyle: CSSProperties & Record<string, string> = {
+    background: currentTheme.background,
+    ...currentTheme.vars,
+    "--accent": currentAccent.accent,
+    "--accent-soft": currentAccent.soft,
+  };
+
   return (
-    <div
-      className="min-h-screen px-3 py-4 md:px-5 md:py-8"
-      style={{
-        background: currentTheme.background,
-        ...currentTheme.vars,
-        "--accent": currentAccent.accent,
-        "--accent-soft": currentAccent.soft,
-      }}
-    >
+    <div className="min-h-screen px-3 py-4 md:px-5 md:py-8" style={pageStyle}>
       <main
         className="mx-auto flex min-h-[calc(100dvh-7.25rem)] max-w-6xl flex-col overflow-visible rounded-lg border border-line bg-surface/95 p-4 text-sm shadow-[0_18px_40px_rgba(20,19,17,0.08)] backdrop-blur-sm md:h-[calc(100dvh-7.25rem)] md:overflow-hidden md:p-5"
         style={

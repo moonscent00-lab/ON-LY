@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import dynamic from "next/dynamic";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
 type ArchiveType = "book" | "scrap" | "place" | "wish";
 type SortMode = "updated_desc" | "created_desc" | "favorite_first";
@@ -215,7 +215,7 @@ function getStoredArchive() {
   if (typeof window === "undefined") return [];
   const parsed = parseJson<unknown[]>(window.localStorage.getItem(ARCHIVE_STORAGE_KEY), []);
   return parsed
-    .map((entry) => {
+    .map((entry): ArchiveItem | null => {
       const item = entry as Partial<ArchiveItem>;
       if (!item || typeof item.title !== "string" || typeof item.type !== "string") {
         return null;
@@ -916,17 +916,15 @@ function ArchivePageInner() {
     backgroundColor: currentAccent.soft,
     color: "#444444",
   };
+  const pageStyle: CSSProperties & Record<string, string> = {
+    background: currentTheme.background,
+    ...currentTheme.vars,
+    "--accent": currentAccent.accent,
+    "--accent-soft": currentAccent.soft,
+  };
 
   return (
-    <div
-      className="min-h-screen px-3 py-4 md:px-5 md:py-8"
-      style={{
-        background: currentTheme.background,
-        ...currentTheme.vars,
-        "--accent": currentAccent.accent,
-        "--accent-soft": currentAccent.soft,
-      }}
-    >
+    <div className="min-h-screen px-3 py-4 md:px-5 md:py-8" style={pageStyle}>
       <main
         className="mx-auto flex min-h-[calc(100dvh-7.25rem)] max-w-6xl flex-col overflow-visible rounded-lg border border-line bg-surface/95 p-4 text-sm shadow-[0_18px_40px_rgba(20,19,17,0.08)] backdrop-blur-sm md:h-[calc(100dvh-7.25rem)] md:overflow-hidden md:p-5"
         style={

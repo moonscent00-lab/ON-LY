@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 const SESSION_KEY = "diary-os.session.v1";
 const PREFIX = "diary-os.";
@@ -198,7 +198,7 @@ function applyPayloadToLocal(payload: Record<string, string>) {
   });
 }
 
-export default function SyncPage() {
+function SyncPageInner() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("");
@@ -460,5 +460,20 @@ export default function SyncPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function SyncPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto mt-4 w-full max-w-3xl rounded-lg border border-[#eeeeee] bg-white/80 p-4 text-[#444444]">
+          <h1 className="text-xl font-semibold">🔄 동기화 센터</h1>
+          <p className="mt-2 text-sm">동기화 화면을 불러오는 중...</p>
+        </main>
+      }
+    >
+      <SyncPageInner />
+    </Suspense>
   );
 }
