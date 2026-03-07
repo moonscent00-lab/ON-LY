@@ -1951,7 +1951,7 @@ function HomePage() {
     return (
       <article
         className={`flex w-full min-w-0 flex-col rounded-lg border border-[#eeeeee] bg-white/80 ${
-          embedded ? "p-2" : "p-4"
+          embedded ? "h-full p-2" : "p-4"
         }`}
       >
         <h3 className={`${embedded ? "mb-1 text-sm" : "mb-2 text-base"} font-semibold`}>
@@ -1980,7 +1980,7 @@ function HomePage() {
         ) : null}
         <ul
           className={`${
-            embedded ? "min-h-[116px] md:min-h-0 md:flex-1" : "h-[170px]"
+            embedded ? "min-h-0 flex-1" : "h-[170px]"
           } min-w-0 space-y-2 overflow-y-auto rounded-md border border-[#dddddd] bg-white p-2`}
         >
           {sortedList.map((todo) => {
