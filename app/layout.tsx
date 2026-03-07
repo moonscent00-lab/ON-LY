@@ -19,9 +19,9 @@ export const metadata: Metadata = {
   title: "Diary OS",
   description: "흩어진 정보를 하나로 모으는 개인/공유 다이어리 OS",
   icons: {
-    icon: [{ url: "/favicon.png", type: "image/png" }],
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    icon: [{ url: "/favicon.png?v=2", type: "image/png" }],
+    shortcut: "/favicon.png?v=2",
+    apple: "/favicon.png?v=2",
   },
 };
 
