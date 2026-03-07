@@ -62,6 +62,12 @@ type ScheduleViewItem = ScheduleItem & {
   calendarName?: string;
   calendarColor?: string;
 };
+type TrackingSession = {
+  startedAt: string;
+  title: string;
+  location: string;
+  note: string;
+};
 type CalendarViewMode = "day" | "week" | "month";
 type ScheduleAddTarget = "local" | "google" | "both";
 
@@ -237,6 +243,17 @@ function addMinutesToHHmm(time: string, minutes: number) {
   dt.setHours(h, m, 0, 0);
   dt.setMinutes(dt.getMinutes() + minutes);
   return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+}
+
+function toLocalDateKey(value: Date) {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function toHHmm(value: Date) {
+  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
 }
 
 
@@ -636,6 +653,8 @@ function HomePage() {
   const [scheduleEditEndTimeInput, setScheduleEditEndTimeInput] = useState("10:00");
   const [scheduleEditLocationInput, setScheduleEditLocationInput] = useState("");
   const [scheduleEditNoteInput, setScheduleEditNoteInput] = useState("");
+  const [activeTracking, setActiveTracking] = useState<TrackingSession | null>(null);
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
   const [theme, setTheme] = useState<MoodTheme>(getStoredTheme);
   const [accentTone, setAccentTone] = useState<AccentTone>(getStoredAccent);
@@ -1392,9 +1411,15 @@ function HomePage() {
     }
   }
 
-  async function addSchedule(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const value = scheduleTitleInput.trim();
+  async function saveScheduleEntry(payload: {
+    title: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    location: string;
+    note: string;
+  }) {
+    const value = payload.title.trim();
     if (!value) return;
     let createdGoogle: { eventId: string; calendarId: string } | null = null;
     if (scheduleAddTarget === "google" || scheduleAddTarget === "both") {
@@ -1406,11 +1431,11 @@ function HomePage() {
             googleAccessToken,
             googleTargetCalendarId || "primary",
             value,
-            scheduleDateInput,
-            scheduleTimeInput,
-            scheduleEndTimeInput,
-            scheduleLocationInput,
-            scheduleNoteInput,
+            payload.date,
+            payload.startTime,
+            payload.endTime,
+            payload.location,
+            payload.note,
           );
           await syncGoogleTodayEvents(
             googleAccessToken,
@@ -1433,15 +1458,34 @@ function HomePage() {
         {
           id: createId(),
           title: value,
-          date: scheduleDateInput,
-          time: scheduleTimeInput,
-          endTime: scheduleEndTimeInput,
-          location: scheduleLocationInput.trim(),
-          note: scheduleNoteInput.trim(),
+          date: payload.date,
+          time: payload.startTime,
+          endTime: payload.endTime,
+          location: payload.location.trim(),
+          note: payload.note.trim(),
           googleCalendarId: createdGoogle?.calendarId || undefined,
           googleEventId: createdGoogle?.eventId || undefined,
         },
       ]);
+    }
+  }
+
+  async function addSchedule(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const value = scheduleTitleInput.trim();
+    if (!value) return;
+    setScheduleSubmitting(true);
+    try {
+      await saveScheduleEntry({
+        title: value,
+        date: scheduleDateInput,
+        startTime: scheduleTimeInput,
+        endTime: scheduleEndTimeInput,
+        location: scheduleLocationInput,
+        note: scheduleNoteInput,
+      });
+    } finally {
+      setScheduleSubmitting(false);
     }
     setScheduleTitleInput("");
     setScheduleLocationInput("");
@@ -1913,6 +1957,50 @@ function HomePage() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSchedulePanelOpen, googleAccessToken, googleTokenExpiresAt, scheduleDateInput, scheduleViewMode, googleCalendarFilterIds]);
+
+  async function startTimeTracking() {
+    if (activeTracking) return;
+    const now = new Date();
+    const nowTime = toHHmm(now);
+    setScheduleDateInput(toLocalDateKey(now));
+    setScheduleTimeInput(nowTime);
+    setScheduleEndTimeInput(addMinutesToHHmm(nowTime, 60));
+    setActiveTracking({
+      startedAt: now.toISOString(),
+      title: scheduleTitleInput.trim() || "타임트래킹",
+      location: scheduleLocationInput.trim(),
+      note: scheduleNoteInput.trim(),
+    });
+  }
+
+  async function stopTimeTrackingAndSave() {
+    if (!activeTracking) return;
+    setScheduleSubmitting(true);
+    try {
+      const start = new Date(activeTracking.startedAt);
+      const end = new Date();
+      const startDate = toLocalDateKey(start);
+      const startTime = toHHmm(start);
+      const endTime = toHHmm(end);
+      setScheduleDateInput(startDate);
+      setScheduleTimeInput(startTime);
+      setScheduleEndTimeInput(endTime);
+      await saveScheduleEntry({
+        title: activeTracking.title,
+        date: startDate,
+        startTime,
+        endTime,
+        location: activeTracking.location,
+        note: activeTracking.note,
+      });
+      setScheduleTitleInput("");
+      setScheduleLocationInput("");
+      setScheduleNoteInput("");
+      setActiveTracking(null);
+    } finally {
+      setScheduleSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     if (appleIcsUrls.length === 0) {
@@ -2916,6 +3004,33 @@ function HomePage() {
                   value={scheduleNoteInput}
                   onChange={(e) => setScheduleNoteInput(e.target.value)}
                 />
+                <div className="flex flex-wrap items-center gap-2">
+                  {activeTracking ? (
+                    <>
+                      <span className="text-xs text-[#666666]">
+                        추적중: {new Date(activeTracking.startedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })} 시작
+                      </span>
+                      <button
+                        type="button"
+                        className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
+                        style={primaryButtonStyle}
+                        onClick={() => void stopTimeTrackingAndSave()}
+                        disabled={scheduleSubmitting}
+                      >
+                        종료 후 저장
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                      onClick={() => void startTimeTracking()}
+                      disabled={scheduleSubmitting}
+                    >
+                      타임트래커 시작
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
@@ -2950,8 +3065,9 @@ function HomePage() {
                     type="submit"
                     className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
                     style={primaryButtonStyle}
+                    disabled={scheduleSubmitting}
                   >
-                    일정 추가
+                    {scheduleSubmitting ? "저장중..." : "일정 추가"}
                   </button>
                 </div>
               </form>
