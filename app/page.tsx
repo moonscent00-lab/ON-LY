@@ -50,6 +50,9 @@ type ScheduleItem = {
   title: string;
   date: string;
   time: string;
+  endTime?: string;
+  location?: string;
+  note?: string;
   googleCalendarId?: string;
   googleEventId?: string;
 };
@@ -220,6 +223,22 @@ function todayKey() {
   return `${y}-${m}-${d}`;
 }
 
+function currentTimeHHmm() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function addMinutesToHHmm(time: string, minutes: number) {
+  const [h, m] = time.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return "10:00";
+  const dt = new Date();
+  dt.setHours(h, m, 0, 0);
+  dt.setMinutes(dt.getMinutes() + minutes);
+  return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+}
+
 
 function datePart(dateTime: string) {
   return dateTime.slice(0, 10);
@@ -338,6 +357,9 @@ function getStoredSchedule() {
         title?: unknown;
         date?: unknown;
         time?: unknown;
+        endTime?: unknown;
+        location?: unknown;
+        note?: unknown;
         googleCalendarId?: unknown;
         googleEventId?: unknown;
       };
@@ -353,6 +375,9 @@ function getStoredSchedule() {
         title: old.title,
         date: old.date,
         time: old.time,
+        endTime: typeof old.endTime === "string" ? old.endTime : undefined,
+        location: typeof old.location === "string" ? old.location : "",
+        note: typeof old.note === "string" ? old.note : "",
         googleCalendarId:
           typeof old.googleCalendarId === "string" ? old.googleCalendarId : undefined,
         googleEventId:
@@ -592,7 +617,12 @@ function HomePage() {
 
   const [scheduleTitleInput, setScheduleTitleInput] = useState("");
   const [scheduleDateInput, setScheduleDateInput] = useState(today);
-  const [scheduleTimeInput, setScheduleTimeInput] = useState("09:00");
+  const [scheduleTimeInput, setScheduleTimeInput] = useState(() => currentTimeHHmm());
+  const [scheduleEndTimeInput, setScheduleEndTimeInput] = useState(() =>
+    addMinutesToHHmm(currentTimeHHmm(), 60),
+  );
+  const [scheduleLocationInput, setScheduleLocationInput] = useState("");
+  const [scheduleNoteInput, setScheduleNoteInput] = useState("");
   const [scheduleViewMode, setScheduleViewMode] = useState<CalendarViewMode>("day");
   const [scheduleAddTarget, setScheduleAddTarget] =
     useState<ScheduleAddTarget>("both");
@@ -603,6 +633,9 @@ function HomePage() {
   const [scheduleEditTitleInput, setScheduleEditTitleInput] = useState("");
   const [scheduleEditDateInput, setScheduleEditDateInput] = useState(today);
   const [scheduleEditTimeInput, setScheduleEditTimeInput] = useState("09:00");
+  const [scheduleEditEndTimeInput, setScheduleEditEndTimeInput] = useState("10:00");
+  const [scheduleEditLocationInput, setScheduleEditLocationInput] = useState("");
+  const [scheduleEditNoteInput, setScheduleEditNoteInput] = useState("");
 
   const [theme, setTheme] = useState<MoodTheme>(getStoredTheme);
   const [accentTone, setAccentTone] = useState<AccentTone>(getStoredAccent);
@@ -1267,11 +1300,16 @@ function HomePage() {
     calendarId: string,
     title: string,
     date: string,
-    time: string,
+    startTime: string,
+    endTime: string,
+    location?: string,
+    note?: string,
   ) {
-    const [hour, minute] = time.split(":");
+    const [hour, minute] = startTime.split(":");
+    const [endHour, endMinute] = endTime.split(":");
     const startAt = new Date(`${date}T${hour}:${minute}:00`);
-    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+    const endAt = new Date(`${date}T${endHour}:${endMinute}:00`);
+    const safeEndAt = endAt > startAt ? endAt : new Date(startAt.getTime() + 60 * 60 * 1000);
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
@@ -1283,8 +1321,10 @@ function HomePage() {
         },
         body: JSON.stringify({
           summary: title,
+          location: location?.trim() || undefined,
+          description: note?.trim() || undefined,
           start: { dateTime: startAt.toISOString(), timeZone },
-          end: { dateTime: endAt.toISOString(), timeZone },
+          end: { dateTime: safeEndAt.toISOString(), timeZone },
         }),
       },
     );
@@ -1318,11 +1358,16 @@ function HomePage() {
     eventId: string,
     title: string,
     date: string,
-    time: string,
+    startTime: string,
+    endTime: string,
+    location?: string,
+    note?: string,
   ) {
-    const [hour, minute] = time.split(":");
+    const [hour, minute] = startTime.split(":");
+    const [endHour, endMinute] = endTime.split(":");
     const startAt = new Date(`${date}T${hour}:${minute}:00`);
-    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+    const endAt = new Date(`${date}T${endHour}:${endMinute}:00`);
+    const safeEndAt = endAt > startAt ? endAt : new Date(startAt.getTime() + 60 * 60 * 1000);
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
@@ -1334,8 +1379,10 @@ function HomePage() {
         },
         body: JSON.stringify({
           summary: title,
+          location: location?.trim() || undefined,
+          description: note?.trim() || undefined,
           start: { dateTime: startAt.toISOString(), timeZone },
-          end: { dateTime: endAt.toISOString(), timeZone },
+          end: { dateTime: safeEndAt.toISOString(), timeZone },
         }),
       },
     );
@@ -1361,6 +1408,9 @@ function HomePage() {
             value,
             scheduleDateInput,
             scheduleTimeInput,
+            scheduleEndTimeInput,
+            scheduleLocationInput,
+            scheduleNoteInput,
           );
           await syncGoogleTodayEvents(
             googleAccessToken,
@@ -1385,12 +1435,17 @@ function HomePage() {
           title: value,
           date: scheduleDateInput,
           time: scheduleTimeInput,
+          endTime: scheduleEndTimeInput,
+          location: scheduleLocationInput.trim(),
+          note: scheduleNoteInput.trim(),
           googleCalendarId: createdGoogle?.calendarId || undefined,
           googleEventId: createdGoogle?.eventId || undefined,
         },
       ]);
     }
     setScheduleTitleInput("");
+    setScheduleLocationInput("");
+    setScheduleNoteInput("");
   }
 
   async function fetchGoogleCalendarList(token: string) {
@@ -1492,7 +1547,10 @@ function HomePage() {
             items?: Array<{
               id?: string;
               summary?: string;
+              location?: string;
+              description?: string;
               start?: { date?: string; dateTime?: string };
+              end?: { date?: string; dateTime?: string };
             }>;
           };
           const items =
@@ -1502,11 +1560,15 @@ function HomePage() {
               const startTime = event.start?.dateTime
                 ? toTimeLabel(event.start.dateTime)
                 : "종일";
+              const endTime = event.end?.dateTime ? toTimeLabel(event.end.dateTime) : undefined;
               return {
                 id: `google-${cal.id}-${event.id ?? createId()}`,
                 title: event.summary?.trim() || "(제목 없음)",
                 date: startDate,
                 time: startTime,
+                endTime,
+                location: event.location ?? "",
+                note: event.description ?? "",
                 source: "google",
                 calendarName: cal.summary,
                 calendarColor: cal.backgroundColor,
@@ -1698,6 +1760,9 @@ function HomePage() {
     setScheduleEditTitleInput(item.title);
     setScheduleEditDateInput(item.date);
     setScheduleEditTimeInput(item.time === "종일" ? "09:00" : item.time);
+    setScheduleEditEndTimeInput(item.endTime && item.endTime !== "종일" ? item.endTime : "10:00");
+    setScheduleEditLocationInput(item.location ?? "");
+    setScheduleEditNoteInput(item.note ?? "");
   }
 
   function closeScheduleEdit() {
@@ -1714,6 +1779,7 @@ function HomePage() {
     try {
       const nextDate = scheduleEditDateInput;
       const nextTime = scheduleEditTimeInput;
+      const nextEndTime = scheduleEditEndTimeInput;
       const googleCalendarId = editingSchedule.googleCalendarId;
       const googleEventId = editingSchedule.googleEventId;
 
@@ -1729,6 +1795,9 @@ function HomePage() {
           title,
           nextDate,
           nextTime,
+          nextEndTime,
+          scheduleEditLocationInput,
+          scheduleEditNoteInput,
         );
       }
 
@@ -1741,6 +1810,9 @@ function HomePage() {
                   title,
                   date: nextDate,
                   time: nextTime,
+                  endTime: nextEndTime,
+                  location: scheduleEditLocationInput.trim(),
+                  note: scheduleEditNoteInput.trim(),
                 }
               : item,
           ),
@@ -1749,7 +1821,15 @@ function HomePage() {
         setScheduleItems((prev) =>
           prev.map((item) =>
             item.googleEventId === googleEventId
-              ? { ...item, title, date: nextDate, time: nextTime }
+              ? {
+                  ...item,
+                  title,
+                  date: nextDate,
+                  time: nextTime,
+                  endTime: nextEndTime,
+                  location: scheduleEditLocationInput.trim(),
+                  note: scheduleEditNoteInput.trim(),
+                }
               : item,
           ),
         );
@@ -1817,6 +1897,9 @@ function HomePage() {
     }
     if (wasSchedulePanelOpenRef.current) return;
     wasSchedulePanelOpenRef.current = true;
+    const now = currentTimeHHmm();
+    setScheduleTimeInput(now);
+    setScheduleEndTimeInput(addMinutesToHHmm(now, 60));
     if (!googleAccessToken) return;
     if (googleTokenExpiresAt && googleTokenExpiresAt <= Date.now()) return;
     const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
@@ -2801,7 +2884,7 @@ function HomePage() {
                   value={scheduleTitleInput}
                   onChange={(e) => setScheduleTitleInput(e.target.value)}
                 />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <input
                     type="date"
                     className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
@@ -2814,7 +2897,25 @@ function HomePage() {
                     value={scheduleTimeInput}
                     onChange={(e) => setScheduleTimeInput(e.target.value)}
                   />
+                  <input
+                    type="time"
+                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+                    value={scheduleEndTimeInput}
+                    onChange={(e) => setScheduleEndTimeInput(e.target.value)}
+                  />
                 </div>
+                <input
+                  className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+                  placeholder="위치 (선택)"
+                  value={scheduleLocationInput}
+                  onChange={(e) => setScheduleLocationInput(e.target.value)}
+                />
+                <textarea
+                  className="min-h-[72px] w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+                  placeholder="메모 (선택)"
+                  value={scheduleNoteInput}
+                  onChange={(e) => setScheduleNoteInput(e.target.value)}
+                />
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
@@ -2878,7 +2979,7 @@ function HomePage() {
                   onChange={(e) => setScheduleEditTitleInput(e.target.value)}
                   placeholder="일정 이름"
                 />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <input
                     type="date"
                     className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
@@ -2891,7 +2992,25 @@ function HomePage() {
                     value={scheduleEditTimeInput}
                     onChange={(e) => setScheduleEditTimeInput(e.target.value)}
                   />
+                  <input
+                    type="time"
+                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+                    value={scheduleEditEndTimeInput}
+                    onChange={(e) => setScheduleEditEndTimeInput(e.target.value)}
+                  />
                 </div>
+                <input
+                  className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+                  value={scheduleEditLocationInput}
+                  onChange={(e) => setScheduleEditLocationInput(e.target.value)}
+                  placeholder="위치 (선택)"
+                />
+                <textarea
+                  className="min-h-[72px] w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+                  value={scheduleEditNoteInput}
+                  onChange={(e) => setScheduleEditNoteInput(e.target.value)}
+                  placeholder="메모 (선택)"
+                />
                 <div className="flex justify-end gap-1">
                   <button
                     type="button"
