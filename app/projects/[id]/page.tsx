@@ -904,38 +904,71 @@ function ProjectDetailPage() {
             {projectSteps.map((step) => (
               <li
                 key={step.id}
-                className="flex items-center justify-between rounded-md border border-[#dddddd] bg-white px-3 py-2"
+                className="rounded-md border border-[#dddddd] bg-white px-3 py-2"
               >
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={step.done}
-                    onChange={() =>
-                      setSteps((prev) =>
-                        prev.map((item) =>
-                          item.id === step.id ? { ...item, done: !item.done } : item,
-                        ),
-                      )
-                    }
-                  />
-                  <span className={step.done ? "text-stone-400 line-through" : ""}>
-                    {step.title}
-                  </span>
-                </label>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-600">
-                    {step.targetDate}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSteps((prev) => prev.filter((item) => item.id !== step.id))
-                    }
-                    className="rounded-md border border-transparent px-2 py-1 text-xs shadow-sm"
-                    style={softButtonStyle}
-                  >
-                    삭제
-                  </button>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <input
+                      type="checkbox"
+                      className="mt-2"
+                      checked={step.done}
+                      onChange={() =>
+                        setSteps((prev) =>
+                          prev.map((item) =>
+                            item.id === step.id ? { ...item, done: !item.done } : item,
+                          ),
+                        )
+                      }
+                    />
+                    {(() => {
+                      const matched = step.title.match(/^(\[[A-Z]\d+\])\s*(.*)$/);
+                      const prefix = matched?.[1] ?? "";
+                      const body = matched ? matched[2] : step.title;
+                      return (
+                        <div className="flex min-w-0 flex-1 items-center gap-1">
+                          {prefix ? (
+                            <span className="shrink-0 rounded-md border border-[#dddddd] bg-stone-50 px-2 py-1 text-xs text-[#666666]">
+                              {prefix}
+                            </span>
+                          ) : null}
+                          <input
+                            className={`min-w-0 flex-1 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-sm ${
+                              step.done ? "text-stone-400 line-through" : "text-[#444444]"
+                            }`}
+                            value={body}
+                            onChange={(e) => {
+                              const nextBody = e.target.value;
+                              setSteps((prev) =>
+                                prev.map((item) =>
+                                  item.id === step.id
+                                    ? {
+                                        ...item,
+                                        title: prefix ? `${prefix} ${nextBody}` : nextBody,
+                                      }
+                                    : item,
+                                ),
+                              );
+                            }}
+                          />
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 text-xs">
+                    <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-600">
+                      {step.targetDate}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSteps((prev) => prev.filter((item) => item.id !== step.id))
+                      }
+                      className="rounded-md border border-transparent px-2 py-1 text-xs shadow-sm"
+                      style={softButtonStyle}
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </div>
               </li>
             ))}
