@@ -313,14 +313,6 @@ function ProjectDetailPage() {
     );
     return initial?.title ?? "";
   });
-  const [editGoal, setEditGoal] = useState(() => {
-    const initial = normalizeProjects(
-      parseJson<unknown[]>(localStorage.getItem(PROJECT_STORAGE_KEY), []),
-    ).find(
-      (item) => item.id === projectId,
-    );
-    return initial?.goal ?? "";
-  });
   const [editUnit, setEditUnit] = useState<Project["unit"]>(() => {
     const initial = normalizeProjects(
       parseJson<unknown[]>(localStorage.getItem(PROJECT_STORAGE_KEY), []),
@@ -495,14 +487,13 @@ function ProjectDetailPage() {
 
   function saveProjectEdit() {
     if (!project) return;
-    if (!editTitle.trim() || !editGoal.trim()) return;
+    if (!editTitle.trim()) return;
     setProjects((prev) =>
       prev.map((item) => {
         if (item.id !== project.id) return item;
         const updated = {
           ...item,
           title: editTitle.trim(),
-          goal: editGoal.trim(),
           unit: editUnit,
           quarterPlan: editQuarterPlan.trim(),
           monthPlan: editMonthPlan.trim(),
@@ -767,19 +758,6 @@ function ProjectDetailPage() {
               </Link>
             </div>
           </div>
-          <p className="mt-2 text-sm text-stone-700">Goal: {project.goal}</p>
-          {supportsLevel(project.unit, "quarter") ? (
-            <p className="mt-1 text-sm text-stone-700">분기 계획: {project.quarterPlan || "-"}</p>
-          ) : null}
-          {supportsLevel(project.unit, "month") ? (
-            <p className="mt-1 text-sm text-stone-700">월 계획: {project.monthPlan || "-"}</p>
-          ) : null}
-          {supportsLevel(project.unit, "week") ? (
-            <p className="mt-1 text-sm text-stone-700">주 계획: {project.weekPlan || "-"}</p>
-          ) : null}
-          {supportsLevel(project.unit, "day") ? (
-            <p className="mt-1 text-sm text-stone-700">일 계획: {project.dayPlan || "-"}</p>
-          ) : null}
           <div className="mt-2 flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-sky-50 px-2 py-1 text-sky-700">
               {project.startDate} ~ {project.endDate}
@@ -814,21 +792,15 @@ function ProjectDetailPage() {
 
         <section className="mb-4 rounded-lg border border-[#eeeeee] bg-white/80 p-4">
           <h2 className="mb-2 text-base font-semibold">프로젝트 정보 수정</h2>
-          <div className="grid gap-2 md:grid-cols-6">
+          <div className="grid gap-2 md:grid-cols-4">
             <input
-              className="md:col-span-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
+              className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               placeholder="프로젝트 이름"
             />
-            <input
-              className="md:col-span-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
-              value={editGoal}
-              onChange={(e) => setEditGoal(e.target.value)}
-              placeholder="가장 큰 목표"
-            />
             <select
-              className="md:col-span-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
+              className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
               value={editUnit}
               onChange={(e) => setEditUnit(e.target.value as Project["unit"])}
             >
@@ -838,38 +810,6 @@ function ProjectDetailPage() {
               <option value="quarter">분기 단위</option>
               <option value="year">연 단위</option>
             </select>
-            {supportsLevel(editUnit, "quarter") ? (
-              <input
-                className="md:col-span-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
-                value={editQuarterPlan}
-                onChange={(e) => setEditQuarterPlan(e.target.value)}
-                placeholder="분기 계획"
-              />
-            ) : null}
-            {supportsLevel(editUnit, "month") ? (
-              <input
-                className="md:col-span-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
-                value={editMonthPlan}
-                onChange={(e) => setEditMonthPlan(e.target.value)}
-                placeholder="월 계획"
-              />
-            ) : null}
-            {supportsLevel(editUnit, "week") ? (
-              <input
-                className="md:col-span-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
-                value={editWeekPlan}
-                onChange={(e) => setEditWeekPlan(e.target.value)}
-                placeholder="주 계획"
-              />
-            ) : null}
-            {supportsLevel(editUnit, "day") ? (
-              <input
-                className="md:col-span-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
-                value={editDayPlan}
-                onChange={(e) => setEditDayPlan(e.target.value)}
-                placeholder="일 계획"
-              />
-            ) : null}
             <input
               type="date"
               className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
@@ -885,7 +825,7 @@ function ProjectDetailPage() {
             <button
               type="button"
               onClick={saveProjectEdit}
-              className="rounded-md border border-transparent px-2 py-1 text-xs font-semibold shadow-sm"
+              className="md:col-span-4 rounded-md border border-transparent px-2 py-1 text-xs font-semibold shadow-sm"
               style={primaryButtonStyle}
             >
               프로젝트 정보 저장
