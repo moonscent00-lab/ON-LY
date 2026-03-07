@@ -2271,7 +2271,7 @@ function HomePage() {
                   key={item.id}
                   className="flex items-center justify-between gap-2 px-1 py-1.5 text-xs"
                 >
-                  <span>
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap">
                     {(scheduleViewMode === "day" ? "" : `${item.date} `) +
                       `${item.time} ${item.title}`}
                   </span>
