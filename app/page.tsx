@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type TodoKind = "date" | "someday" | "quick" | "project";
 type RoutineGroup = "morning" | "day" | "night";
@@ -641,6 +641,8 @@ function HomePage() {
   const [appleSyncInfo, setAppleSyncInfo] = useState<string | null>(null);
   const [appleSchedules, setAppleSchedules] = useState<ScheduleViewItem[]>([]);
   const [googleSyncInfo, setGoogleSyncInfo] = useState<string | null>(null);
+  const hasAutoSyncedOnEntryRef = useRef(false);
+  const wasSchedulePanelOpenRef = useRef(false);
 
   useEffect(() => {
     localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos));
@@ -1790,6 +1792,44 @@ function HomePage() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today, googleAccessToken, scheduleDateInput, scheduleViewMode, googleCalendarFilterIds]);
+
+  useEffect(() => {
+    if (!googleAccessToken) return;
+    if (hasAutoSyncedOnEntryRef.current) return;
+    if (googleTokenExpiresAt && googleTokenExpiresAt <= Date.now()) return;
+    hasAutoSyncedOnEntryRef.current = true;
+    const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
+    void syncGoogleTodayEvents(
+      googleAccessToken,
+      undefined,
+      range.start,
+      range.end,
+      range.label,
+      googleCalendarFilterIds,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleAccessToken, googleTokenExpiresAt]);
+
+  useEffect(() => {
+    if (!isSchedulePanelOpen) {
+      wasSchedulePanelOpenRef.current = false;
+      return;
+    }
+    if (wasSchedulePanelOpenRef.current) return;
+    wasSchedulePanelOpenRef.current = true;
+    if (!googleAccessToken) return;
+    if (googleTokenExpiresAt && googleTokenExpiresAt <= Date.now()) return;
+    const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
+    void syncGoogleTodayEvents(
+      googleAccessToken,
+      undefined,
+      range.start,
+      range.end,
+      range.label,
+      googleCalendarFilterIds,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSchedulePanelOpen, googleAccessToken, googleTokenExpiresAt, scheduleDateInput, scheduleViewMode, googleCalendarFilterIds]);
 
   useEffect(() => {
     if (appleIcsUrls.length === 0) {
