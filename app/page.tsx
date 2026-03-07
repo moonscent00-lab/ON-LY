@@ -1936,10 +1936,10 @@ function HomePage() {
           {title}
         </h3>
         {linkedToOneThing ? (
-          <div className="mb-2 flex w-full min-w-0 max-w-full flex-col gap-1.5 rounded-md border border-[#dddddd] bg-white px-2 py-2 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-2">
+          <div className="mb-2 flex w-full min-w-0 max-w-full flex-col gap-1 rounded-md border border-[#dddddd] bg-white px-2 py-1.5 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-1.5">
             <p className="text-xs font-medium text-[#444444]">OneThing 프로젝트 필터</p>
             <select
-              className="h-9 w-full min-w-0 max-w-full rounded-md border border-[#dddddd] bg-white px-2 text-sm"
+              className="h-8 w-full min-w-0 max-w-full rounded-md border border-[#dddddd] bg-white px-2 text-sm"
               value={oneThingProjectFilter}
               onChange={(e) =>
                 setOneThingProjectFilter(e.target.value as OneThingProjectFilter)
@@ -1956,7 +1956,9 @@ function HomePage() {
           </div>
         ) : null}
         <ul
-          className={`${embedded ? "min-h-0 flex-1" : "h-[170px]"} min-w-0 space-y-2 overflow-y-auto pr-1`}
+          className={`${
+            embedded ? "min-h-[116px] md:min-h-0 md:flex-1" : "h-[170px]"
+          } min-w-0 space-y-2 overflow-y-auto rounded-md border border-[#dddddd] bg-white p-2`}
         >
           {sortedList.map((todo) => {
             const linkedProject =
