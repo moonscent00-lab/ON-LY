@@ -2315,11 +2315,11 @@ function HomePage() {
                 </button>
               </div>
             </form>
-            <div className="mt-2 flex flex-col gap-1 md:min-h-0 md:flex-1 md:overflow-hidden">
-              <div className="min-h-0 md:basis-3/5 md:grow-[6]">
+            <div className="mt-2 flex flex-col gap-1 md:min-h-0 md:flex-1 md:grid md:grid-rows-[6fr_4fr] md:overflow-hidden">
+              <div className="min-h-0">
                 {renderTodoCard("OneThing Todo List", filteredOneThingTodos, true, "🎯", true)}
               </div>
-              <div className="min-h-0 md:basis-2/5 md:grow-[4]">
+              <div className="min-h-0">
                 {renderTodoCard("Todo List", otherTodos, false, "🧩", true)}
               </div>
             </div>
