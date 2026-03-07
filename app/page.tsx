@@ -1857,6 +1857,29 @@ function HomePage() {
     if (checked) celebrate();
   }
 
+  function moveRoutine(id: string, direction: "up" | "down") {
+    setRoutines((prev) => {
+      const currentIndex = prev.findIndex((item) => item.id === id);
+      if (currentIndex < 0) return prev;
+      const group = prev[currentIndex].group;
+      const groupIndexes = prev
+        .map((item, index) => ({ group: item.group, index }))
+        .filter((entry) => entry.group === group)
+        .map((entry) => entry.index);
+      const positionInGroup = groupIndexes.indexOf(currentIndex);
+      if (positionInGroup < 0) return prev;
+      const nextPosition =
+        direction === "up" ? positionInGroup - 1 : positionInGroup + 1;
+      if (nextPosition < 0 || nextPosition >= groupIndexes.length) return prev;
+      const targetIndex = groupIndexes[nextPosition];
+      const next = [...prev];
+      const temp = next[currentIndex];
+      next[currentIndex] = next[targetIndex];
+      next[targetIndex] = temp;
+      return next;
+    });
+  }
+
   function moveTodoGroup(id: string, linkedToOneThing: boolean) {
     setTodos((prev) =>
       prev.map((item) =>
@@ -2504,6 +2527,22 @@ function HomePage() {
                             </span>
                           </label>
                           <div className="flex items-center gap-1">
+                            <button
+                              className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+                              onClick={() => moveRoutine(routine.id, "up")}
+                              type="button"
+                              title="위로 이동"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+                              onClick={() => moveRoutine(routine.id, "down")}
+                              type="button"
+                              title="아래로 이동"
+                            >
+                              ↓
+                            </button>
                             <button
                               className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
                               onClick={() => startRoutineEdit(routine)}
