@@ -405,6 +405,63 @@ function ProjectDetailPage() {
     return Math.round((doneCount / projectSteps.length) * 100);
   }, [projectSteps]);
 
+  const displayProjectSteps = useMemo(() => {
+    const weekRegex = /^\[w(\d+)\]/i;
+    const dayRegex = /^\[d(\d+)\]/i;
+    const getWeekNumber = (title: string) => Number(title.match(weekRegex)?.[1] ?? 0);
+    const getDayNumber = (title: string) => Number(title.match(dayRegex)?.[1] ?? 0);
+
+    const weekSteps = projectSteps
+      .filter((step) => weekRegex.test(step.title))
+      .sort((a, b) => getWeekNumber(a.title) - getWeekNumber(b.title));
+
+    if (weekSteps.length === 0) return projectSteps;
+
+    const daySteps = projectSteps
+      .filter((step) => dayRegex.test(step.title))
+      .sort((a, b) => getDayNumber(a.title) - getDayNumber(b.title));
+
+    const others = projectSteps.filter(
+      (step) => !weekRegex.test(step.title) && !dayRegex.test(step.title),
+    );
+
+    const daysByWeek = new Map<number, ProjectStep[]>();
+    daySteps.forEach((step) => {
+      const dayNum = getDayNumber(step.title);
+      if (dayNum <= 0) return;
+      const weekNum = Math.ceil(dayNum / 7);
+      const bucket = daysByWeek.get(weekNum) ?? [];
+      bucket.push(step);
+      daysByWeek.set(weekNum, bucket);
+    });
+
+    const ordered: ProjectStep[] = [];
+    const usedIds = new Set<string>();
+    weekSteps.forEach((weekStep) => {
+      ordered.push(weekStep);
+      usedIds.add(weekStep.id);
+      const weekNum = getWeekNumber(weekStep.title);
+      const linkedDays = daysByWeek.get(weekNum) ?? [];
+      linkedDays.forEach((dayStep) => {
+        ordered.push(dayStep);
+        usedIds.add(dayStep.id);
+      });
+    });
+
+    daySteps.forEach((step) => {
+      if (usedIds.has(step.id)) return;
+      ordered.push(step);
+      usedIds.add(step.id);
+    });
+    others.forEach((step) => {
+      if (usedIds.has(step.id)) return;
+      ordered.push(step);
+      usedIds.add(step.id);
+    });
+
+    return ordered;
+  }, [projectSteps]);
+
   const currentTheme = themePalette[theme];
   const currentAccent = accentPalette[accentTone];
   const primaryButtonStyle = {
@@ -901,7 +958,7 @@ function ProjectDetailPage() {
         <section className="rounded-lg border border-[#eeeeee] bg-white/80 p-4">
           <h2 className="mb-2 text-base font-semibold">프로젝트 액션 리스트</h2>
           <ul className="space-y-2">
-            {projectSteps.map((step) => (
+            {displayProjectSteps.map((step) => (
               <li
                 key={step.id}
                 className="rounded-md border border-[#dddddd] bg-white px-3 py-2"
