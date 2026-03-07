@@ -2316,10 +2316,10 @@ function HomePage() {
               </div>
             </form>
             <div className="mt-2 flex flex-col gap-1 md:min-h-0 md:flex-1 md:overflow-hidden">
-              <div className="min-h-0 md:flex-1">
+              <div className="min-h-0 md:basis-3/5 md:grow-[6]">
                 {renderTodoCard("OneThing Todo List", filteredOneThingTodos, true, "🎯", true)}
               </div>
-              <div className="min-h-0 md:flex-1">
+              <div className="min-h-0 md:basis-2/5 md:grow-[4]">
                 {renderTodoCard("Todo List", otherTodos, false, "🧩", true)}
               </div>
             </div>
