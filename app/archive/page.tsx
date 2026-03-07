@@ -1670,54 +1670,59 @@ function ArchivePageInner() {
               </button>
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <p className="text-2xl font-bold text-[#444444]">{monthBookCount}권</p>
-              <div className="ml-auto flex items-center gap-1 text-xs">
-                <button
-                  type="button"
-                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[#444444]"
-                  onClick={() => {
-                    setBookMonth((prev) => shiftMonth(prev, -1));
-                    setOpenBookCellDate(null);
-                  }}
-                >
-                  ◀
-                </button>
-                <span className="px-1 font-semibold">{formatMonthLabel(bookMonth)}</span>
-                <button
-                  type="button"
-                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[#444444]"
-                  onClick={() => {
-                    setBookMonth((prev) => shiftMonth(prev, 1));
-                    setOpenBookCellDate(null);
-                  }}
-                >
-                  ▶
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
-                {([
-                  ["all", "전체"],
-                  ["reading", "읽는 중"],
-                  ["paused", "중단"],
-                  ["done", "완독"],
-                ] as [BookStatusFilter, string][]).map(([key, label]) => (
+            <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-2xl font-bold text-[#444444]">
+                  <span className="mr-1">📚</span>
+                  {monthBookCount}권
+                </p>
+                <div className="ml-auto flex items-center gap-1 text-xs md:ml-0">
                   <button
-                    key={key}
                     type="button"
-                    className="rounded-full border border-[#dddddd] px-2 py-1 text-[11px] text-[#444444]"
-                    style={{ backgroundColor: bookStatusFilter === key ? currentAccent.soft : "#fff" }}
+                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[#444444]"
                     onClick={() => {
-                      setBookStatusFilter(key);
+                      setBookMonth((prev) => shiftMonth(prev, -1));
                       setOpenBookCellDate(null);
                     }}
                   >
-                    {label}
+                    ◀
                   </button>
-                ))}
+                  <span className="px-1 font-semibold">{formatMonthLabel(bookMonth)}</span>
+                  <button
+                    type="button"
+                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[#444444]"
+                    onClick={() => {
+                      setBookMonth((prev) => shiftMonth(prev, 1));
+                      setOpenBookCellDate(null);
+                    }}
+                  >
+                    ▶
+                  </button>
+                </div>
               </div>
+
+              <div className="flex flex-wrap items-center gap-1 md:justify-end">
+                  {([
+                    ["all", "전체"],
+                    ["reading", "읽는 중"],
+                    ["paused", "중단"],
+                    ["done", "완독"],
+                  ] as [BookStatusFilter, string][]).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className="rounded-full border border-[#dddddd] px-2 py-1 text-[11px] text-[#444444]"
+                      style={{ backgroundColor: bookStatusFilter === key ? currentAccent.soft : "#fff" }}
+                      onClick={() => {
+                        setBookStatusFilter(key);
+                        setOpenBookCellDate(null);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+            </div>
 
             <div className="mt-3 md:hidden">
               {mobileBookCalendarRows.length === 0 ? (
@@ -1759,7 +1764,7 @@ function ArchivePageInner() {
                   {calendarCells.map((cell, idx) => (
                     <div
                       key={`${cell.date ?? "empty"}-${idx}`}
-                      className="relative aspect-square min-h-[56px] overflow-hidden rounded-md border border-[#eeeeee] bg-white p-1 md:min-h-[68px]"
+                      className="relative min-h-[56px] overflow-hidden rounded-md border border-[#eeeeee] bg-white p-1 md:h-[78px] md:min-h-0"
                     >
                       {cell.day ? (
                         <>
@@ -1777,8 +1782,17 @@ function ArchivePageInner() {
                               }}
                               title={`${cell.books.length}권`}
                             >
-                              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold text-[#444444]">
-                                📚 {cell.books.length}권
+                              {cell.books[0]?.coverImage ? (
+                                <img
+                                  src={cell.books[0].coverImage}
+                                  alt={cell.books[0].title}
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              ) : null}
+                              <span className="absolute inset-0 bg-gradient-to-t from-black/45 to-black/5" />
+                              <span className="absolute bottom-1 right-1 rounded bg-black/55 px-1 py-0.5 text-[10px] font-semibold text-white">
+                                {cell.books.length}권
                               </span>
                             </button>
                           ) : null}
