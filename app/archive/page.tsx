@@ -1764,7 +1764,7 @@ function ArchivePageInner() {
                   {calendarCells.map((cell, idx) => (
                     <div
                       key={`${cell.date ?? "empty"}-${idx}`}
-                      className="relative min-h-[56px] overflow-hidden rounded-md border border-[#eeeeee] bg-white p-1 md:h-[78px] md:min-h-0"
+                      className="relative min-h-[56px] rounded-md border border-[#eeeeee] bg-white p-1 md:h-[78px] md:min-h-0"
                     >
                       {cell.day ? (
                         <>
@@ -1799,7 +1799,7 @@ function ArchivePageInner() {
 
                           {openBookCellDate === cell.date && cell.books.length > 0 ? (
                             <div
-                              className="absolute left-1 top-14 z-40 w-40 rounded-md border border-[#dddddd] bg-white p-2 text-xs shadow-lg"
+                              className="absolute left-1 top-14 z-50 w-40 rounded-md border border-[#dddddd] bg-white p-2 text-xs shadow-lg"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <p className="mb-1 font-semibold text-[#444444]">
@@ -1822,7 +1822,7 @@ function ArchivePageInner() {
               </div>
             </div>
             <div className="mt-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[11px] text-[#444444]">
-              <div className="flex flex-wrap items-center">
+              <div className="flex flex-wrap items-center md:hidden">
                 <span>
                   <span className="font-semibold">읽는 중</span> {monthlyReadingCount}권
                 </span>
@@ -1835,7 +1835,28 @@ function ArchivePageInner() {
                   <span className="font-semibold">완독</span> {monthlyDoneCount}권
                 </span>
               </div>
-              <div className="mt-0.5 flex flex-wrap items-center">
+              <div className="mt-0.5 flex flex-wrap items-center md:hidden">
+                <span>
+                  <span className="font-semibold">많이 읽은 장르</span> {monthlyTopGenre}
+                </span>
+                <span className="mx-2 text-[#bbbbbb]">|</span>
+                <span>
+                  <span className="font-semibold">평균 진행률</span> {monthlyAvgProgress}%
+                </span>
+              </div>
+              <div className="hidden flex-wrap items-center md:flex">
+                <span>
+                  <span className="font-semibold">읽는 중</span> {monthlyReadingCount}권
+                </span>
+                <span className="mx-2 text-[#bbbbbb]">|</span>
+                <span>
+                  <span className="font-semibold">중단</span> {monthlyPausedCount}권
+                </span>
+                <span className="mx-2 text-[#bbbbbb]">|</span>
+                <span>
+                  <span className="font-semibold">완독</span> {monthlyDoneCount}권
+                </span>
+                <span className="mx-2 text-[#bbbbbb]">|</span>
                 <span>
                   <span className="font-semibold">많이 읽은 장르</span> {monthlyTopGenre}
                 </span>
