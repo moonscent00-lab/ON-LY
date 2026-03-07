@@ -18,6 +18,11 @@ const ibmMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Diary OS",
   description: "흩어진 정보를 하나로 모으는 개인/공유 다이어리 OS",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export const viewport: Viewport = {
