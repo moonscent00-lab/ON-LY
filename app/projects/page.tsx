@@ -458,9 +458,9 @@ function ProjectPage() {
                           ? "주간"
                           : "일간"}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-stretch">
                   <select
-                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
+                    className="h-9 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
                     value={project.status}
                     onChange={(e) =>
                       setProjects((prev) =>
@@ -482,7 +482,7 @@ function ProjectPage() {
                   <button
                     type="button"
                     onClick={() => addProjectTodo(project)}
-                    className="rounded-md border border-transparent px-2 py-1 text-xs font-medium shadow-sm"
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-transparent px-2 py-1 text-xs font-medium shadow-sm whitespace-nowrap"
                     style={softButtonStyle}
                   >
                     오늘 투두로 내리기
@@ -490,7 +490,7 @@ function ProjectPage() {
                   <Link
                     href={`/projects/${project.id}`}
                     scroll={false}
-                    className="rounded-md border border-transparent px-2 py-1 text-xs font-medium shadow-sm"
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-transparent px-2 py-1 text-xs font-medium shadow-sm whitespace-nowrap"
                     style={softButtonStyle}
                   >
                     상세
@@ -498,7 +498,7 @@ function ProjectPage() {
                   <button
                     type="button"
                     onClick={() => editProject(project)}
-                    className="rounded-md border border-transparent px-2 py-1 text-xs shadow-sm"
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-transparent px-2 py-1 text-xs shadow-sm whitespace-nowrap"
                     style={softButtonStyle}
                   >
                     수정
@@ -510,7 +510,7 @@ function ProjectPage() {
                         prev.filter((item) => item.id !== project.id),
                       )
                     }
-                    className="rounded-md border border-transparent px-2 py-1 text-xs shadow-sm"
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-transparent px-2 py-1 text-xs shadow-sm whitespace-nowrap"
                     style={softButtonStyle}
                   >
                     삭제

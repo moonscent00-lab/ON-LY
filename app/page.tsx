@@ -2862,8 +2862,8 @@ function HomePage() {
         </section>
 
         {isTodoInputOpen ? (
-          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
-            <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl">
+          <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:items-center sm:p-3">
+            <div className="mt-14 max-h-[calc(100dvh-5rem)] w-full max-w-lg overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl sm:mt-0 sm:max-h-[88vh]">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-[#444444]">✅ 투두 입력</h3>
                 <button
@@ -2875,9 +2875,9 @@ function HomePage() {
                 </button>
               </div>
               <form className="mt-3 space-y-1.5" onSubmit={addTodo}>
-                <div className="grid grid-cols-[1fr_auto] gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
                   <div className="space-y-1.5">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <input
                         className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs outline-none focus:border-accent"
                         placeholder="할 일 입력"
@@ -2895,7 +2895,7 @@ function HomePage() {
                         <option value="someday">언젠가</option>
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {todoKindInput === "date" ? (
                         <input
                           type="date"
@@ -2918,7 +2918,7 @@ function HomePage() {
                   </div>
                   <button
                     type="submit"
-                    className="h-full rounded-md border border-transparent bg-accent px-3 py-1 text-xs font-medium text-[#444444] shadow-sm"
+                    className="h-9 rounded-md border border-transparent bg-accent px-3 py-1 text-xs font-medium text-[#444444] shadow-sm sm:h-full"
                     style={primaryButtonStyle}
                   >
                     추가
@@ -2945,8 +2945,8 @@ function HomePage() {
         ) : null}
 
         {doneTodoModal ? (
-          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
-            <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl">
+          <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:items-center sm:p-3">
+            <div className="mt-14 max-h-[calc(100dvh-5rem)] w-full max-w-md overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl sm:mt-0 sm:max-h-[80vh]">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-[#444444]">✅ {doneTodoModal.title} 완료 목록</h3>
                 <button
@@ -2990,8 +2990,8 @@ function HomePage() {
         ) : null}
 
         {isSchedulePanelOpen ? (
-          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
-            <div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl">
+          <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:items-center sm:p-3">
+            <div className="mt-14 max-h-[calc(100dvh-5rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl sm:mt-0 sm:max-h-[88vh]">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-[#444444]">🗓️ 일정 입력/연동</h3>
                 <button
@@ -3114,16 +3114,16 @@ function HomePage() {
               ) : null}
               <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
                 <p className="text-xs font-medium text-[#444444]">Apple 캘린더(ICS 공유 링크)</p>
-                <div className="mt-1 flex gap-1">
+                <div className="mt-1 grid grid-cols-1 gap-1 sm:grid-cols-[1fr_auto]">
                   <input
                     value={appleIcsInput}
                     onChange={(e) => setAppleIcsInput(e.target.value)}
                     placeholder="https://... .ics"
-                    className="flex-1 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs outline-none focus:border-accent"
+                    className="min-w-0 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs outline-none focus:border-accent"
                   />
                   <button
                     type="button"
-                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444] sm:whitespace-nowrap"
                     onClick={addAppleIcsUrl}
                   >
                     링크 추가
@@ -3178,7 +3178,7 @@ function HomePage() {
                   value={scheduleTitleInput}
                   onChange={(e) => setScheduleTitleInput(e.target.value)}
                 />
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <input
                     type="date"
                     className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
@@ -3237,7 +3237,7 @@ function HomePage() {
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <select
                     className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
                     value={scheduleAddTarget}
@@ -3282,8 +3282,8 @@ function HomePage() {
         ) : null}
 
         {editingSchedule ? (
-          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
-            <div className="w-full max-w-md rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl">
+          <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:items-center sm:p-3">
+            <div className="mt-14 w-full max-w-md rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl sm:mt-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-[#444444]">📝 일정 수정</h3>
                 <button
@@ -3301,7 +3301,7 @@ function HomePage() {
                   onChange={(e) => setScheduleEditTitleInput(e.target.value)}
                   placeholder="일정 이름"
                 />
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <input
                     type="date"
                     className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
