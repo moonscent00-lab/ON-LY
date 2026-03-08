@@ -745,25 +745,19 @@ function ArchivePageInner() {
         const geocode = maps.Service?.geocode;
         if (typeof geocode !== "function") return;
 
-        const queries = [
-          (selectedPlace.placeAddress || "").trim(),
-          selectedPlace.title.trim(),
-        ].filter(Boolean);
+        const addressQuery = (selectedPlace.placeAddress || "").trim();
+        const titleQuery = selectedPlace.title.trim();
+        const queries = addressQuery ? [addressQuery] : titleQuery ? [titleQuery] : [];
         if (queries.length === 0) return;
 
         const fallbackWithOpenStreetMap = async () => {
           for (const query of queries) {
             try {
-              const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
-                { headers: { Accept: "application/json" } },
-              );
+              const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
               if (!res.ok) continue;
-              const rows = (await res.json()) as Array<{ lat?: string; lon?: string }>;
-              const first = rows[0];
-              if (!first) continue;
-              const lat = Number(first.lat);
-              const lng = Number(first.lon);
+              const row = (await res.json()) as { lat?: number | null; lng?: number | null };
+              const lat = Number(row.lat);
+              const lng = Number(row.lng);
               if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
               const point = new maps.LatLng(lat, lng);
               map.setCenter(point);

@@ -2296,7 +2296,7 @@ function HomePage() {
                       onChange={() => toggleTodo(todo.id)}
                     />
                     <span
-                      className={`min-w-0 flex-1 truncate whitespace-nowrap ${
+                      className={`block min-w-0 flex-1 truncate whitespace-nowrap ${
                         todo.done
                           ? "text-stone-400 line-through"
                           : isUrgentDeadline
@@ -2307,7 +2307,7 @@ function HomePage() {
                       {todo.text}
                     </span>
                   </label>
-                  <div className="ml-auto flex items-center gap-1">
+                  <div className="ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap">
                     <button
                       type="button"
                       className="rounded-md border border-[#dddddd] bg-white px-1.5 py-0.5 text-[11px] font-medium text-[#444444]"
@@ -2896,12 +2896,20 @@ function HomePage() {
                       </select>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="date"
-                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
-                        value={todoDueDateInput}
-                        onChange={(e) => setTodoDueDateInput(e.target.value)}
-                      />
+                      {todoKindInput === "date" ? (
+                        <input
+                          type="date"
+                          className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
+                          value={todoDueDateInput}
+                          onChange={(e) => setTodoDueDateInput(e.target.value)}
+                        />
+                      ) : (
+                        <div className="rounded-md border border-[#eeeeee] bg-white px-3 py-1 text-xs text-[#777777]">
+                          {todoKindInput === "someday"
+                            ? "언젠가: 마감일 없음"
+                            : "날짜 선택 안 함"}
+                        </div>
+                      )}
                       <label className="flex items-center gap-2 rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs">
                         <input
                           type="checkbox"
