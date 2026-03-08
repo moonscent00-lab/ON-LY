@@ -2279,20 +2279,20 @@ function HomePage() {
                 className="rounded-md border border-[#dddddd] bg-white px-2 py-1"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <label className="flex items-center gap-2 text-xs">
+                  <label className="flex min-w-0 flex-1 items-center gap-2 text-xs">
                     <input
                       type="checkbox"
                       checked={todo.done}
                       onChange={() => toggleTodo(todo.id)}
                     />
                     <span
-                      className={
+                      className={`min-w-0 flex-1 truncate whitespace-nowrap ${
                         todo.done
                           ? "text-stone-400 line-through"
                           : isUrgentDeadline
                             ? "font-semibold text-red-600"
                             : ""
-                      }
+                      }`}
                     >
                       {todo.text}
                     </span>
@@ -2316,26 +2316,6 @@ function HomePage() {
                       title="수정"
                     >
                       수정
-                    </button>
-                    <button
-                      onClick={() =>
-                        setTodos((prev) => prev.filter((item) => item.id !== todo.id))
-                      }
-                      type="button"
-                      className="rounded-md border border-transparent bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-[#444444] shadow-sm"
-                      style={softButtonStyle}
-                      title="삭제"
-                    >
-                      ✕
-                    </button>
-                    <button
-                      className="rounded-md border border-transparent bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-[#444444] shadow-sm"
-                      onClick={() => moveTodoGroup(todo.id, linkedToOneThing)}
-                      type="button"
-                      style={softButtonStyle}
-                      title="이동"
-                    >
-                      M
                     </button>
                   </div>
                 </div>
@@ -2368,6 +2348,22 @@ function HomePage() {
                             onClick={cancelTodoEdit}
                           >
                             취소
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+                            onClick={() => moveTodoGroup(todo.id, linkedToOneThing)}
+                          >
+                            이동
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+                            onClick={() =>
+                              setTodos((prev) => prev.filter((item) => item.id !== todo.id))
+                            }
+                          >
+                            삭제
                           </button>
                         </div>
                       </div>

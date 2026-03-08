@@ -733,44 +733,54 @@ function ArchivePageInner() {
     if (!mapEl) return;
 
     const renderMap = () => {
-      const maps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
-      if (!maps) return;
-      const fallbackCenter = new maps.LatLng(37.5665, 126.978);
-      const map = new maps.Map(mapEl, {
-        center: fallbackCenter,
-        zoom: 14,
-      });
-
-      const geocode = maps.Service?.geocode;
-      if (!geocode) return;
-
-      const queries = [
-        (selectedPlace.placeAddress || "").trim(),
-        selectedPlace.title.trim(),
-      ].filter(Boolean);
-      if (queries.length === 0) return;
-
-      const tryGeocode = (index: number) => {
-        if (index >= queries.length) return;
-        geocode({ query: queries[index] }, (_status, response) => {
-          const address = response?.v2?.addresses?.[0];
-          if (!address) {
-            tryGeocode(index + 1);
-            return;
-          }
-          const lat = Number(address.y);
-          const lng = Number(address.x);
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            tryGeocode(index + 1);
-            return;
-          }
-          const point = new maps.LatLng(lat, lng);
-          map.setCenter(point);
-          new maps.Marker({ map, position: point });
+      try {
+        const maps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
+        if (!maps || typeof maps.LatLng !== "function" || typeof maps.Map !== "function") return;
+        const fallbackCenter = new maps.LatLng(37.5665, 126.978);
+        const map = new maps.Map(mapEl, {
+          center: fallbackCenter,
+          zoom: 14,
         });
-      };
 
-      tryGeocode(0);
+        const geocode = maps.Service?.geocode;
+        if (typeof geocode !== "function") return;
+
+        const queries = [
+          (selectedPlace.placeAddress || "").trim(),
+          selectedPlace.title.trim(),
+        ].filter(Boolean);
+        if (queries.length === 0) return;
+
+        const tryGeocode = (index: number) => {
+          if (index >= queries.length) return;
+          geocode({ query: queries[index] }, (_status, response) => {
+            try {
+              const address = response?.v2?.addresses?.[0];
+              if (!address) {
+                tryGeocode(index + 1);
+                return;
+              }
+              const lat = Number(address.y);
+              const lng = Number(address.x);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                tryGeocode(index + 1);
+                return;
+              }
+              const point = new maps.LatLng(lat, lng);
+              map.setCenter(point);
+              if (typeof maps.Marker === "function") {
+                new maps.Marker({ map, position: point });
+              }
+            } catch {
+              tryGeocode(index + 1);
+            }
+          });
+        };
+
+        tryGeocode(0);
+      } catch {
+        // swallow map render errors to prevent page crash
+      }
     };
 
     const mapsLoaded = (window as typeof window & { naver?: { maps?: unknown } }).naver?.maps;
