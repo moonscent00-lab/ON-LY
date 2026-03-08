@@ -3192,13 +3192,13 @@ function HomePage() {
                 </div>
                 <form className="mt-2 grid gap-2" onSubmit={addRoutine}>
                   <input
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+                    className="w-full min-w-0 rounded-md border border-[#dddddd] bg-white px-3 py-2 text-sm outline-none focus:border-accent"
                     placeholder="반복할 루틴 입력"
                     value={routineInput}
                     onChange={(e) => setRoutineInput(e.target.value)}
                   />
                   <select
-                    className="h-9 rounded-md border border-[#dddddd] bg-white px-3 text-sm"
+                    className="h-9 w-full min-w-0 rounded-md border border-[#dddddd] bg-white px-3 text-sm"
                     value={routineGroupInput}
                     onChange={(e) => setRoutineGroupInput(e.target.value as RoutineGroup)}
                   >

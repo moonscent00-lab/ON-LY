@@ -347,6 +347,7 @@ function ArchivePageInner() {
   const [selectedWishStatus, setSelectedWishStatus] = useState<"all" | WishStatus>("all");
   const [selectedWishId, setSelectedWishId] = useState<string | null>(null);
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(items));
@@ -366,6 +367,15 @@ function ArchivePageInner() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isAddModalOpen, zoomedImageUrl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobileViewport(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   function resetForm() {
     setTypeInput(typeFilter);
@@ -566,6 +576,228 @@ function ArchivePageInner() {
     setItems((prev) => [next, ...prev]);
     resetForm();
     setIsAddModalOpen(false);
+  }
+
+  function renderAddEditorPanel() {
+    return (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-[#444444]">
+            <span className="mr-1 text-lg">✍️</span>
+            {editingId ? `${typeMeta[typeInput].label} 수정` : `${typeMeta[typeInput].label} 추가`}
+          </h3>
+          <button
+            type="button"
+            className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+            onClick={() => {
+              setIsAddModalOpen(false);
+              resetForm();
+            }}
+          >
+            닫기
+          </button>
+        </div>
+        <form className="mt-2 space-y-2" onSubmit={upsertItem}>
+          <input
+            className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+            value={titleInput}
+            onChange={(e) => setTitleInput(e.target.value)}
+            placeholder={typeInput === "book" ? "책 제목" : "제목"}
+          />
+
+          {typeInput === "book" ? (
+            <>
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={authorInput}
+                onChange={(e) => setAuthorInput(e.target.value)}
+                placeholder="작가 이름"
+              />
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={genreInput}
+                onChange={(e) => setGenreInput(e.target.value)}
+                placeholder="장르 (예: 자기계발, 소설)"
+              />
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={bookCoverInput}
+                onChange={(e) => setBookCoverInput(e.target.value)}
+                placeholder="책 표지 이미지 URL (1개)"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
+                  value={startDateInput}
+                  onChange={(e) => setStartDateInput(e.target.value)}
+                />
+                <input
+                  type="date"
+                  className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
+                  value={endDateInput}
+                  onChange={(e) => setEndDateInput(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
+                  value={totalPagesInput}
+                  onChange={(e) => setTotalPagesInput(e.target.value)}
+                  placeholder="전체 페이지"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
+                  value={readPagesInput}
+                  onChange={(e) => setReadPagesInput(e.target.value)}
+                  placeholder="읽은 페이지"
+                />
+              </div>
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="태그(쉼표로 구분)"
+              />
+              <textarea
+                className="h-20 w-full resize-none rounded-md border border-[#dddddd] bg-white px-3 py-2 text-xs outline-none focus:border-accent"
+                value={bookScrapInput}
+                onChange={(e) => setBookScrapInput(e.target.value)}
+                placeholder="문장 스크랩 (한 줄에 하나씩)"
+              />
+              <textarea
+                className="h-16 w-full resize-none rounded-md border border-[#dddddd] bg-white px-3 py-2 text-xs outline-none focus:border-accent"
+                value={noteInput}
+                onChange={(e) => setNoteInput(e.target.value)}
+                placeholder="코멘트"
+              />
+            </>
+          ) : (
+            <>
+              {typeInput === "scrap" ? (
+                <input
+                  className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                  value={scrapCategoryInput}
+                  onChange={(e) => setScrapCategoryInput(e.target.value)}
+                  placeholder="스크랩 카테고리 (예: 유튜브, 기사, SNS)"
+                />
+              ) : null}
+              {typeInput === "place" ? (
+                <>
+                  <select
+                    className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
+                    value={placeStatusInput}
+                    onChange={(e) => setPlaceStatusInput(e.target.value as PlaceStatus)}
+                  >
+                    <option value="wishlist">🔖 방문전</option>
+                    <option value="visited">♥️ 방문</option>
+                    <option value="pass">❌ 방문</option>
+                  </select>
+                  <input
+                    className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                    value={placeCategoryInput}
+                    onChange={(e) => setPlaceCategoryInput(e.target.value)}
+                    placeholder="장소 카테고리 (예: 카페, 맛집, 여행지)"
+                  />
+                  <input
+                    className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                    value={placeAddressInput}
+                    onChange={(e) => setPlaceAddressInput(e.target.value)}
+                    placeholder="장소 주소 (예: 부산 해운대구 ...)"
+                  />
+                </>
+              ) : null}
+              {typeInput === "wish" ? (
+                <>
+                  <select
+                    className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
+                    value={wishStatusInput}
+                    onChange={(e) => setWishStatusInput(e.target.value as WishStatus)}
+                  >
+                    <option value="wishlist">💫 위시</option>
+                    <option value="planned">🛒 구매 예정</option>
+                    <option value="bought">✅ 구매 완료</option>
+                  </select>
+                  <input
+                    className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                    value={wishCategoryInput}
+                    onChange={(e) => setWishCategoryInput(e.target.value)}
+                    placeholder="위시 카테고리 (예: 가전, 패션, 홈)"
+                  />
+                  <input
+                    className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                    value={wishPriceInput}
+                    onChange={(e) => setWishPriceInput(e.target.value)}
+                    placeholder="예산/가격 (예: 32만원)"
+                  />
+                </>
+              ) : null}
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={linkInput}
+                onChange={(e) => setLinkInput(e.target.value)}
+                placeholder="링크(URL)"
+              />
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="태그(쉼표로 구분)"
+              />
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={image1Input}
+                onChange={(e) => setImage1Input(e.target.value)}
+                placeholder="이미지 URL 1"
+              />
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={image2Input}
+                onChange={(e) => setImage2Input(e.target.value)}
+                placeholder="이미지 URL 2"
+              />
+              <input
+                className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
+                value={image3Input}
+                onChange={(e) => setImage3Input(e.target.value)}
+                placeholder="이미지 URL 3"
+              />
+              <textarea
+                className="h-20 w-full resize-none rounded-md border border-[#dddddd] bg-white px-3 py-2 text-xs outline-none focus:border-accent"
+                value={noteInput}
+                onChange={(e) => setNoteInput(e.target.value)}
+                placeholder="메모"
+              />
+            </>
+          )}
+          <div className="flex items-center justify-end gap-1">
+            {editingId ? (
+              <button
+                type="button"
+                className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  resetForm();
+                }}
+              >
+                취소
+              </button>
+            ) : null}
+            <button
+              type="submit"
+              className="rounded-md border border-transparent px-2 py-1 text-xs font-medium shadow-sm"
+              style={primaryButtonStyle}
+            >
+              {editingId ? "수정 저장" : "추가"}
+            </button>
+          </div>
+        </form>
+      </>
+    );
   }
 
   const filteredItems = useMemo(() => {
@@ -904,6 +1136,12 @@ function ArchivePageInner() {
             </div>
           </div>
         </section>
+
+        {isMobileViewport && isAddModalOpen ? (
+          <section className="mt-1 rounded-lg border border-[#eeeeee] bg-white/80 p-4">
+            {renderAddEditorPanel()}
+          </section>
+        ) : null}
 
         <div className="mt-1 min-h-0 flex-1">
         {typeFilter === "wish" ? (
@@ -2064,224 +2302,10 @@ function ArchivePageInner() {
           </div>
         ) : null}
 
-        {isAddModalOpen ? (
+        {!isMobileViewport && isAddModalOpen ? (
           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
             <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-[#444444]">
-                  <span className="mr-1 text-lg">✍️</span>
-                  {editingId ? `${typeMeta[typeInput].label} 수정` : `${typeMeta[typeInput].label} 추가`}
-                </h3>
-                <button
-                  type="button"
-                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                  onClick={() => {
-                    setIsAddModalOpen(false);
-                    resetForm();
-                  }}
-                >
-                  닫기
-                </button>
-              </div>
-              <form className="mt-2 space-y-2" onSubmit={upsertItem}>
-                <input
-                  className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                  value={titleInput}
-                  onChange={(e) => setTitleInput(e.target.value)}
-                  placeholder={typeInput === "book" ? "책 제목" : "제목"}
-                />
-
-                {typeInput === "book" ? (
-                  <>
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={authorInput}
-                      onChange={(e) => setAuthorInput(e.target.value)}
-                      placeholder="작가 이름"
-                    />
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={genreInput}
-                      onChange={(e) => setGenreInput(e.target.value)}
-                      placeholder="장르 (예: 자기계발, 소설)"
-                    />
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={bookCoverInput}
-                      onChange={(e) => setBookCoverInput(e.target.value)}
-                      placeholder="책 표지 이미지 URL (1개)"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="date"
-                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-                        value={startDateInput}
-                        onChange={(e) => setStartDateInput(e.target.value)}
-                      />
-                      <input
-                        type="date"
-                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-                        value={endDateInput}
-                        onChange={(e) => setEndDateInput(e.target.value)}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-                        value={totalPagesInput}
-                        onChange={(e) => setTotalPagesInput(e.target.value)}
-                        placeholder="전체 페이지"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-                        value={readPagesInput}
-                        onChange={(e) => setReadPagesInput(e.target.value)}
-                        placeholder="읽은 페이지"
-                      />
-                    </div>
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={tagsInput}
-                      onChange={(e) => setTagsInput(e.target.value)}
-                      placeholder="태그(쉼표로 구분)"
-                    />
-                    <textarea
-                      className="h-20 w-full resize-none rounded-md border border-[#dddddd] bg-white px-3 py-2 text-xs outline-none focus:border-accent"
-                      value={bookScrapInput}
-                      onChange={(e) => setBookScrapInput(e.target.value)}
-                      placeholder="문장 스크랩 (한 줄에 하나씩)"
-                    />
-                    <textarea
-                      className="h-16 w-full resize-none rounded-md border border-[#dddddd] bg-white px-3 py-2 text-xs outline-none focus:border-accent"
-                      value={noteInput}
-                      onChange={(e) => setNoteInput(e.target.value)}
-                      placeholder="코멘트"
-                    />
-                  </>
-                ) : (
-                  <>
-                    {typeInput === "scrap" ? (
-                      <input
-                        className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                        value={scrapCategoryInput}
-                        onChange={(e) => setScrapCategoryInput(e.target.value)}
-                        placeholder="스크랩 카테고리 (예: 유튜브, 기사, SNS)"
-                      />
-                    ) : null}
-                    {typeInput === "place" ? (
-                      <>
-                        <select
-                          className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-                          value={placeStatusInput}
-                          onChange={(e) => setPlaceStatusInput(e.target.value as PlaceStatus)}
-                        >
-                          <option value="wishlist">🔖 방문전</option>
-                          <option value="visited">♥️ 방문</option>
-                          <option value="pass">❌ 방문</option>
-                        </select>
-                        <input
-                          className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                          value={placeCategoryInput}
-                          onChange={(e) => setPlaceCategoryInput(e.target.value)}
-                          placeholder="장소 카테고리 (예: 카페, 맛집, 여행지)"
-                        />
-                        <input
-                          className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                          value={placeAddressInput}
-                          onChange={(e) => setPlaceAddressInput(e.target.value)}
-                          placeholder="장소 주소 (예: 부산 해운대구 ...)"
-                        />
-                      </>
-                    ) : null}
-                    {typeInput === "wish" ? (
-                      <>
-                        <select
-                          className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-                          value={wishStatusInput}
-                          onChange={(e) => setWishStatusInput(e.target.value as WishStatus)}
-                        >
-                          <option value="wishlist">💫 위시</option>
-                          <option value="planned">🛒 구매 예정</option>
-                          <option value="bought">✅ 구매 완료</option>
-                        </select>
-                        <input
-                          className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                          value={wishCategoryInput}
-                          onChange={(e) => setWishCategoryInput(e.target.value)}
-                          placeholder="위시 카테고리 (예: 가전, 패션, 홈)"
-                        />
-                        <input
-                          className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                          value={wishPriceInput}
-                          onChange={(e) => setWishPriceInput(e.target.value)}
-                          placeholder="예산/가격 (예: 32만원)"
-                        />
-                      </>
-                    ) : null}
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={linkInput}
-                      onChange={(e) => setLinkInput(e.target.value)}
-                      placeholder="링크(URL)"
-                    />
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={tagsInput}
-                      onChange={(e) => setTagsInput(e.target.value)}
-                      placeholder="태그(쉼표로 구분)"
-                    />
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={image1Input}
-                      onChange={(e) => setImage1Input(e.target.value)}
-                      placeholder="이미지 URL 1"
-                    />
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={image2Input}
-                      onChange={(e) => setImage2Input(e.target.value)}
-                      placeholder="이미지 URL 2"
-                    />
-                    <input
-                      className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs outline-none focus:border-accent"
-                      value={image3Input}
-                      onChange={(e) => setImage3Input(e.target.value)}
-                      placeholder="이미지 URL 3"
-                    />
-                    <textarea
-                      className="h-20 w-full resize-none rounded-md border border-[#dddddd] bg-white px-3 py-2 text-xs outline-none focus:border-accent"
-                      value={noteInput}
-                      onChange={(e) => setNoteInput(e.target.value)}
-                      placeholder="메모"
-                    />
-                  </>
-                )}
-                <div className="flex items-center justify-end gap-1">
-                  {editingId ? (
-                    <button
-                      type="button"
-                      className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                      onClick={() => {
-                        setIsAddModalOpen(false);
-                        resetForm();
-                      }}
-                    >
-                      취소
-                    </button>
-                  ) : null}
-                  <button
-                    type="submit"
-                    className="rounded-md border border-transparent px-2 py-1 text-xs font-medium shadow-sm"
-                    style={primaryButtonStyle}
-                  >
-                    {editingId ? "수정 저장" : "추가"}
-                  </button>
-                </div>
-              </form>
+              {renderAddEditorPanel()}
             </div>
           </div>
         ) : null}
