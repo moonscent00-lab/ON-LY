@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { getPreferredSyncEmail, runSmartSync } from "@/lib/cloud-sync";
 
 type TodoKind = "date" | "someday" | "quick" | "project";
 type RoutineGroup = "morning" | "day" | "night";
@@ -704,10 +703,6 @@ function HomePage() {
   const [googleSyncInfo, setGoogleSyncInfo] = useState<string | null>(null);
   const hasAutoSyncedOnEntryRef = useRef(false);
   const wasSchedulePanelOpenRef = useRef(false);
-  const cloudAutoSyncBootedRef = useRef(false);
-  const cloudAutoSyncBusyRef = useRef(false);
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
   useEffect(() => {
     localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos));
@@ -753,47 +748,6 @@ function HomePage() {
   useEffect(() => {
     localStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(reports));
   }, [reports]);
-
-  useEffect(() => {
-    if (cloudAutoSyncBootedRef.current) return;
-    if (!supabaseUrl || !supabaseAnon) return;
-    const email = getPreferredSyncEmail();
-    if (!email) return;
-    cloudAutoSyncBootedRef.current = true;
-
-    const runSilentSync = async () => {
-      if (cloudAutoSyncBusyRef.current) return;
-      cloudAutoSyncBusyRef.current = true;
-      try {
-        await runSmartSync({
-          userEmail: email,
-          supabaseUrl,
-          supabaseAnon,
-        });
-      } catch {
-        // Silent background sync: keep UI uninterrupted on temporary network failures.
-      } finally {
-        cloudAutoSyncBusyRef.current = false;
-      }
-    };
-
-    void runSilentSync();
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        void runSilentSync();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    const timer = window.setInterval(() => {
-      void runSilentSync();
-    }, 1000 * 60 * 5);
-
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.clearInterval(timer);
-    };
-  }, [supabaseUrl, supabaseAnon]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

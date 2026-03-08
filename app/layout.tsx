@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_KR, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import TopNav from "@/components/top-nav";
+import CloudAutoSyncGate from "@/components/cloud-auto-sync-gate";
 
 const ibmSans = IBM_Plex_Sans_KR({
   variable: "--font-ibm-sans-kr",
@@ -41,6 +42,7 @@ export default function RootLayout({
     <html lang="ko">
       <body className={`${ibmSans.variable} ${ibmMono.variable} antialiased`}>
         <TopNav />
+        <CloudAutoSyncGate />
         {children}
       </body>
     </html>

@@ -40,6 +40,12 @@ type SmartSyncResult = {
   initialized: boolean;
 };
 
+type BootstrapResult = {
+  action: "none" | "pulled" | "pushed";
+  localCount: number;
+  cloudUpdatedAt: string;
+};
+
 function safeJson<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
   try {
@@ -140,6 +146,20 @@ function saveSyncBackup(payload: Record<string, string>, meta: SyncMetaMap) {
       meta,
     }),
   );
+}
+
+function payloadMeaningfulCount(payload: Record<string, string>) {
+  let count = 0;
+  Object.values(payload).forEach((value) => {
+    if (!isEmptyLikeValue(value)) count += 1;
+  });
+  return count;
+}
+
+function payloadSignature(payload: Record<string, string>) {
+  const keys = Object.keys(payload).sort();
+  const pairs = keys.map((key) => `${key}:${hashString(payload[key] ?? "")}`);
+  return hashString(pairs.join("|"));
 }
 
 function normalizeLocalState() {
@@ -364,6 +384,67 @@ export async function runSmartSync({
     localWins: merged.localWins,
     cloudWins: merged.cloudWins,
     initialized: false,
+  };
+}
+
+export async function bootstrapCloudState({
+  userEmail,
+  supabaseUrl,
+  supabaseAnon,
+}: SmartSyncOptions): Promise<BootstrapResult> {
+  const email = userEmail.trim();
+  if (!email) throw new Error("이메일이 필요해요.");
+  if (!supabaseUrl || !supabaseAnon) throw new Error("Supabase 환경변수 설정이 필요해요.");
+
+  setSavedSyncEmail(email);
+  const local = normalizeLocalState();
+  const cloudRow = await fetchCloudRow(email, supabaseUrl, supabaseAnon);
+  const now = new Date().toISOString();
+
+  if (!cloudRow?.payload) {
+    saveSyncBackup(local.payload, local.meta);
+    await saveCloudRow(
+      email,
+      { payload: local.payload, meta: local.meta, updated_at: now },
+      supabaseUrl,
+      supabaseAnon,
+    );
+    return { action: "pushed", localCount: Object.keys(local.payload).length, cloudUpdatedAt: now };
+  }
+
+  const cloudPayload = cloudRow.payload ?? {};
+  const cloudMeta = cloudRow.meta ?? {};
+  const localMeaningful = payloadMeaningfulCount(local.payload);
+  const cloudMeaningful = payloadMeaningfulCount(cloudPayload);
+
+  if (cloudMeaningful === 0 && localMeaningful > 0) {
+    saveSyncBackup(local.payload, local.meta);
+    await saveCloudRow(
+      email,
+      { payload: local.payload, meta: local.meta, updated_at: now },
+      supabaseUrl,
+      supabaseAnon,
+    );
+    return { action: "pushed", localCount: Object.keys(local.payload).length, cloudUpdatedAt: now };
+  }
+
+  const localSig = payloadSignature(local.payload);
+  const cloudSig = payloadSignature(cloudPayload);
+  if (localSig === cloudSig) {
+    return {
+      action: "none",
+      localCount: Object.keys(local.payload).length,
+      cloudUpdatedAt: cloudRow.updated_at ?? now,
+    };
+  }
+
+  saveSyncBackup(local.payload, local.meta);
+  applyPayloadToLocal(cloudPayload);
+  setLocalMeta(cloudMeta);
+  return {
+    action: "pulled",
+    localCount: Object.keys(cloudPayload).length,
+    cloudUpdatedAt: cloudRow.updated_at ?? now,
   };
 }
 
