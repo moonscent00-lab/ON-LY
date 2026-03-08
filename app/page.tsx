@@ -667,6 +667,13 @@ function HomePage() {
   const [todoExpandedMap, setTodoExpandedMap] = useState<Record<string, boolean>>(
     {},
   );
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
+  const [editingTodoText, setEditingTodoText] = useState("");
+  const [editingTodoDueDate, setEditingTodoDueDate] = useState("");
+  const [doneTodoModal, setDoneTodoModal] = useState<{
+    title: string;
+    items: Todo[];
+  } | null>(null);
   const [routinePanelTab, setRoutinePanelTab] = useState<RoutineGroup>("morning");
   const [oneThingProjectFilter, setOneThingProjectFilter] =
     useState<OneThingProjectFilter>("all");
@@ -1645,7 +1652,7 @@ function HomePage() {
     }
   }
 
-  async function connectGoogleCalendar() {
+  function requestGoogleAccessToken(prompt: "" | "consent") {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
       setGoogleError("환경변수 NEXT_PUBLIC_GOOGLE_CLIENT_ID가 필요해요.");
@@ -1694,7 +1701,11 @@ function HomePage() {
         })();
       },
     });
-    tokenClient.requestAccessToken({ prompt: googleAccessToken ? "" : "consent" });
+    tokenClient.requestAccessToken({ prompt });
+  }
+
+  async function connectGoogleCalendar() {
+    requestGoogleAccessToken(googleAccessToken ? "" : "consent");
   }
 
   function disconnectGoogleCalendar() {
@@ -1902,7 +1913,8 @@ function HomePage() {
   useEffect(() => {
     if (!googleAccessToken) return;
     if (googleTokenExpiresAt && googleTokenExpiresAt <= Date.now()) {
-      disconnectGoogleCalendar();
+      setGoogleAccessToken("");
+      setGoogleTokenExpiresAt(0);
       return;
     }
     const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
@@ -1916,6 +1928,14 @@ function HomePage() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today, googleAccessToken, scheduleDateInput, scheduleViewMode, googleCalendarFilterIds]);
+
+  useEffect(() => {
+    if (!googleCalendarReady) return;
+    if (googleAccessToken) return;
+    if (!googleAutoSyncEnabled && !isSchedulePanelOpen) return;
+    requestGoogleAccessToken("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleCalendarReady, googleAccessToken, googleAutoSyncEnabled, isSchedulePanelOpen]);
 
   useEffect(() => {
     if (!googleAccessToken) return;
@@ -2099,6 +2119,36 @@ function HomePage() {
     );
   }
 
+  function startTodoEdit(todo: Todo) {
+    setEditingTodoId(todo.id);
+    setEditingTodoText(todo.text);
+    setEditingTodoDueDate(todo.dueDate ?? "");
+  }
+
+  function cancelTodoEdit() {
+    setEditingTodoId(null);
+    setEditingTodoText("");
+    setEditingTodoDueDate("");
+  }
+
+  function saveTodoEdit() {
+    if (!editingTodoId) return;
+    const nextText = editingTodoText.trim();
+    if (!nextText) return;
+    setTodos((prev) =>
+      prev.map((item) =>
+        item.id === editingTodoId
+          ? {
+              ...item,
+              text: nextText,
+              dueDate: editingTodoDueDate.trim() ? editingTodoDueDate : null,
+            }
+          : item,
+      ),
+    );
+    cancelTodoEdit();
+  }
+
   function toggleTodoExpanded(id: string) {
     setTodoExpandedMap((prev) => ({ ...prev, [id]: !prev[id] }));
   }
@@ -2158,6 +2208,8 @@ function HomePage() {
       if (bDeadline !== null) return 1;
       return b.createdAt.localeCompare(a.createdAt);
     });
+    const activeList = sortedList.filter((todo) => !todo.done);
+    const doneList = sortedList.filter((todo) => todo.done);
 
     return (
       <article
@@ -2165,10 +2217,19 @@ function HomePage() {
           embedded ? "h-full p-2" : "p-4"
         }`}
       >
-        <h3 className={`${embedded ? "mb-1 text-sm" : "mb-2 text-base"} font-semibold`}>
-          <span className="mr-1 text-lg">{emoji}</span>
-          {title}
-        </h3>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <h3 className={`${embedded ? "text-sm" : "text-base"} font-semibold`}>
+            <span className="mr-1 text-lg">{emoji}</span>
+            {title}
+          </h3>
+          <button
+            type="button"
+            className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+            onClick={() => setDoneTodoModal({ title, items: doneList })}
+          >
+            완료 {doneList.length}
+          </button>
+        </div>
         {linkedToOneThing ? (
           <div className="mb-2 flex w-full min-w-0 max-w-full flex-col gap-1 rounded-md border border-[#dddddd] bg-white px-2 py-1.5 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-1.5">
             <p className="text-xs font-medium text-[#444444]">OneThing 프로젝트 필터</p>
@@ -2194,7 +2255,12 @@ function HomePage() {
             embedded ? "min-h-0 flex-1" : "h-[170px]"
           } min-w-0 space-y-2 overflow-y-auto rounded-md border border-[#dddddd] bg-white p-2`}
         >
-          {sortedList.map((todo) => {
+          {activeList.length === 0 ? (
+            <li className="rounded-md border border-[#eeeeee] bg-white px-2 py-2 text-xs text-[#777777]">
+              진행중 할 일이 없습니다.
+            </li>
+          ) : null}
+          {activeList.map((todo) => {
             const linkedProject =
               todo.projectId &&
               projects.find((project) => project.id === todo.projectId);
@@ -2241,6 +2307,17 @@ function HomePage() {
                       {isExpanded ? "▲" : "▼"}
                     </button>
                     <button
+                      type="button"
+                      className="rounded-md border border-[#dddddd] bg-white px-1.5 py-0.5 text-[11px] font-medium text-[#444444]"
+                      onClick={() => {
+                        startTodoEdit(todo);
+                        if (!isExpanded) toggleTodoExpanded(todo.id);
+                      }}
+                      title="수정"
+                    >
+                      수정
+                    </button>
+                    <button
                       onClick={() =>
                         setTodos((prev) => prev.filter((item) => item.id !== todo.id))
                       }
@@ -2263,28 +2340,61 @@ function HomePage() {
                   </div>
                 </div>
                 {isExpanded ? (
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full bg-stone-100 px-2 py-1 text-[#444444]">
-                      {todoKindLabel[todo.kind]}
-                    </span>
-                    {todo.dueDate ? (
-                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[#444444]">
-                        {toKoreanDate(todo.dueDate)}
-                      </span>
+                  <div className="mt-2 space-y-1.5">
+                    {editingTodoId === todo.id ? (
+                      <div className="space-y-1">
+                        <input
+                          className="w-full rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
+                          value={editingTodoText}
+                          onChange={(e) => setEditingTodoText(e.target.value)}
+                        />
+                        <input
+                          type="date"
+                          className="w-full rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs"
+                          value={editingTodoDueDate}
+                          onChange={(e) => setEditingTodoDueDate(e.target.value)}
+                        />
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+                            onClick={saveTodoEdit}
+                          >
+                            저장
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+                            onClick={cancelTodoEdit}
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </div>
                     ) : null}
-                    {todo.kind === "project" &&
-                    todo.projectStartDate &&
-                    todo.projectEndDate ? (
-                      <span className="rounded-full bg-sky-50 px-2 py-1 text-[#444444]">
-                        {toKoreanDate(todo.projectStartDate)} ~{" "}
-                        {toKoreanDate(todo.projectEndDate)}
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full bg-stone-100 px-2 py-1 text-[#444444]">
+                        {todoKindLabel[todo.kind]}
                       </span>
-                    ) : null}
-                    {linkedProject ? (
-                      <span className="rounded-full bg-purple-50 px-2 py-1 text-[#444444]">
-                        {linkedProject.title}
-                      </span>
-                    ) : null}
+                      {todo.dueDate ? (
+                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[#444444]">
+                          {toKoreanDate(todo.dueDate)}
+                        </span>
+                      ) : null}
+                      {todo.kind === "project" &&
+                      todo.projectStartDate &&
+                      todo.projectEndDate ? (
+                        <span className="rounded-full bg-sky-50 px-2 py-1 text-[#444444]">
+                          {toKoreanDate(todo.projectStartDate)} ~{" "}
+                          {toKoreanDate(todo.projectEndDate)}
+                        </span>
+                      ) : null}
+                      {linkedProject ? (
+                        <span className="rounded-full bg-purple-50 px-2 py-1 text-[#444444]">
+                          {linkedProject.title}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
               </li>
@@ -2782,6 +2892,51 @@ function HomePage() {
             </ul>
           </article>
         </section>
+
+        {doneTodoModal ? (
+          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
+            <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-[#444444]">✅ {doneTodoModal.title} 완료 목록</h3>
+                <button
+                  type="button"
+                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                  onClick={() => setDoneTodoModal(null)}
+                >
+                  닫기
+                </button>
+              </div>
+              <ul className="mt-2 space-y-1">
+                {doneTodoModal.items.length === 0 ? (
+                  <li className="rounded-md border border-[#eeeeee] bg-white px-2 py-2 text-xs text-[#777777]">
+                    완료된 항목이 없습니다.
+                  </li>
+                ) : (
+                  doneTodoModal.items.map((todo) => (
+                    <li key={`done-${todo.id}`} className="rounded-md border border-[#dddddd] bg-white px-2 py-1.5 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="line-through text-stone-400">{todo.text}</span>
+                        <button
+                          type="button"
+                          className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+                          onClick={() =>
+                            setTodos((prev) =>
+                              prev.map((item) =>
+                                item.id === todo.id ? { ...item, done: false } : item,
+                              ),
+                            )
+                          }
+                        >
+                          복원
+                        </button>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </div>
+        ) : null}
 
         {isSchedulePanelOpen ? (
           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">

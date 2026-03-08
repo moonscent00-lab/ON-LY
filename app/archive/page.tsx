@@ -753,7 +753,7 @@ function ArchivePageInner() {
       const tryGeocode = (index: number) => {
         if (index >= queries.length) return;
         geocode({ query: queries[index] }, (_status, response) => {
-          const address = response.v2?.addresses?.[0];
+          const address = response?.v2?.addresses?.[0];
           if (!address) {
             tryGeocode(index + 1);
             return;
