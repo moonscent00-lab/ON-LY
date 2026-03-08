@@ -225,6 +225,41 @@ function buildAddressQueries(raw: string, title: string) {
   return Array.from(new Set(variants));
 }
 
+let naverSdkLoadPromise: Promise<void> | null = null;
+
+function ensureNaverMapSdk(clientId: string) {
+  if (typeof window === "undefined") return Promise.resolve();
+  const loadedMaps = (window as typeof window & { naver?: { maps?: unknown } }).naver?.maps;
+  if (loadedMaps) return Promise.resolve();
+  if (naverSdkLoadPromise) return naverSdkLoadPromise;
+
+  naverSdkLoadPromise = new Promise<void>((resolve, reject) => {
+    const mapSdkId = "naver-map-sdk";
+    const existing = document.getElementById(mapSdkId) as HTMLScriptElement | null;
+    const handleLoad = () => resolve();
+    const handleError = () => {
+      naverSdkLoadPromise = null;
+      reject(new Error("sdk-load-failed"));
+    };
+
+    if (existing) {
+      existing.addEventListener("load", handleLoad, { once: true });
+      existing.addEventListener("error", handleError, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = mapSdkId;
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder`;
+    script.async = true;
+    script.addEventListener("load", handleLoad, { once: true });
+    script.addEventListener("error", handleError, { once: true });
+    document.head.appendChild(script);
+  });
+
+  return naverSdkLoadPromise;
+}
+
 function getStoredArchive() {
   if (typeof window === "undefined") return [];
   const parsed = parseJson<unknown[]>(window.localStorage.getItem(ARCHIVE_STORAGE_KEY), []);
@@ -715,40 +750,14 @@ function ArchivePageInner() {
     setPlaceMapError(null);
     let cancelled = false;
 
-    const loadNaverMapSdk = async () => {
-      const mapSdkId = "naver-map-sdk";
-      const existing = document.getElementById(mapSdkId) as HTMLScriptElement | null;
-      if (existing) {
-        const loadedMaps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
-        if (loadedMaps && typeof loadedMaps.Service?.geocode === "function") return;
-        existing.remove();
-      }
-      await new Promise<void>((resolve, reject) => {
-        const script = document.createElement("script");
-        script.id = mapSdkId;
-        script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}&submodules=geocoder`;
-        script.async = true;
-        script.addEventListener("load", () => resolve(), { once: true });
-        script.addEventListener("error", () => reject(new Error("sdk-load-failed")), { once: true });
-        document.head.appendChild(script);
-      });
-      const loadedMaps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
-      if (!loadedMaps) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.getElementById(mapSdkId) as HTMLScriptElement | null;
-          if (!script) {
-            reject(new Error("sdk-missing"));
-            return;
-          }
-          script.addEventListener("load", () => resolve(), { once: true });
-          script.addEventListener("error", () => reject(new Error("sdk-load-failed")), { once: true });
-        });
-      }
-    };
-
     const render = async () => {
       try {
-        await loadNaverMapSdk();
+        try {
+          await ensureNaverMapSdk(naverMapClientId);
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          await ensureNaverMapSdk(naverMapClientId);
+        }
         const maps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
         if (!maps) {
           if (!cancelled) setPlaceMapError("네이버 지도를 불러오지 못했어요.");
