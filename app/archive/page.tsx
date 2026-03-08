@@ -741,16 +741,36 @@ function ArchivePageInner() {
         zoom: 14,
       });
 
-      const query = (selectedPlace.placeAddress || "").trim() || selectedPlace.title;
-      maps.Service?.geocode?.({ query }, (status, response) => {
-        const okStatus = maps.Service?.Status?.OK;
-        if (okStatus && status !== okStatus) return;
-        const address = response.v2?.addresses?.[0];
-        if (!address) return;
-        const point = new maps.LatLng(Number(address.y), Number(address.x));
-        map.setCenter(point);
-        new maps.Marker({ map, position: point });
-      });
+      const geocode = maps.Service?.geocode;
+      if (!geocode) return;
+
+      const queries = [
+        (selectedPlace.placeAddress || "").trim(),
+        selectedPlace.title.trim(),
+      ].filter(Boolean);
+      if (queries.length === 0) return;
+
+      const tryGeocode = (index: number) => {
+        if (index >= queries.length) return;
+        geocode({ query: queries[index] }, (_status, response) => {
+          const address = response.v2?.addresses?.[0];
+          if (!address) {
+            tryGeocode(index + 1);
+            return;
+          }
+          const lat = Number(address.y);
+          const lng = Number(address.x);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            tryGeocode(index + 1);
+            return;
+          }
+          const point = new maps.LatLng(lat, lng);
+          map.setCenter(point);
+          new maps.Marker({ map, position: point });
+        });
+      };
+
+      tryGeocode(0);
     };
 
     const mapsLoaded = (window as typeof window & { naver?: { maps?: unknown } }).naver?.maps;
