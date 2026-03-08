@@ -212,6 +212,19 @@ function buildNaverMapSearchUrl(query: string) {
   return `https://map.naver.com/v5/search/${encoded}`;
 }
 
+function buildAddressQueries(raw: string, title: string) {
+  const base = raw.trim();
+  const normalized = base
+    .replace(/^부산시\s*/g, "부산광역시 ")
+    .replace(/([가-힣A-Za-z])(\d)/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+  const variants = [base, normalized, title.trim()]
+    .map((v) => v.trim())
+    .filter(Boolean);
+  return Array.from(new Set(variants));
+}
+
 function getStoredArchive() {
   if (typeof window === "undefined") return [];
   const parsed = parseJson<unknown[]>(window.localStorage.getItem(ARCHIVE_STORAGE_KEY), []);
@@ -683,7 +696,11 @@ function ArchivePageInner() {
 
   useEffect(() => {
     if (typeFilter !== "place" || !selectedPlace) return;
-    const query = (selectedPlace.placeAddress || "").trim() || selectedPlace.title.trim();
+    const queries = buildAddressQueries(
+      (selectedPlace.placeAddress || "").trim(),
+      selectedPlace.title,
+    );
+    const query = queries[0] ?? "";
     const mapEl = document.getElementById("naver-place-map");
     if (!mapEl) return;
     if (!query) {
@@ -702,12 +719,9 @@ function ArchivePageInner() {
       const mapSdkId = "naver-map-sdk";
       const existing = document.getElementById(mapSdkId) as HTMLScriptElement | null;
       if (existing) {
-        if ((window as typeof window & { naver?: { maps?: unknown } }).naver?.maps) return;
-        await new Promise<void>((resolve, reject) => {
-          existing.addEventListener("load", () => resolve(), { once: true });
-          existing.addEventListener("error", () => reject(new Error("sdk-load-failed")), { once: true });
-        });
-        return;
+        const loadedMaps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
+        if (loadedMaps && typeof loadedMaps.Service?.geocode === "function") return;
+        existing.remove();
       }
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement("script");
@@ -718,6 +732,18 @@ function ArchivePageInner() {
         script.addEventListener("error", () => reject(new Error("sdk-load-failed")), { once: true });
         document.head.appendChild(script);
       });
+      const loadedMaps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
+      if (!loadedMaps) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.getElementById(mapSdkId) as HTMLScriptElement | null;
+          if (!script) {
+            reject(new Error("sdk-missing"));
+            return;
+          }
+          script.addEventListener("load", () => resolve(), { once: true });
+          script.addEventListener("error", () => reject(new Error("sdk-load-failed")), { once: true });
+        });
+      }
     };
 
     const render = async () => {
@@ -739,43 +765,43 @@ function ArchivePageInner() {
         };
 
         if (typeof serviceGeocode === "function") {
-          const coords = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
-            serviceGeocode({ query }, (status, response) => {
-              if (serviceStatusOk && status !== serviceStatusOk) {
-                resolve(null);
-                return;
-              }
-              const addr = response?.v2?.addresses?.[0];
-              const lat = Number(addr?.y);
-              const lng = Number(addr?.x);
-              if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-                resolve(null);
-                return;
-              }
-              resolve({ lat, lng });
+          for (const q of queries) {
+            const coords = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+              serviceGeocode({ query: q }, (status, response) => {
+                if (serviceStatusOk && status !== serviceStatusOk) {
+                  resolve(null);
+                  return;
+                }
+                const addr = response?.v2?.addresses?.[0];
+                const lat = Number(addr?.y);
+                const lng = Number(addr?.x);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                  resolve(null);
+                  return;
+                }
+                resolve({ lat, lng });
+              });
             });
-          });
-          if (coords) {
-            renderAt(coords.lat, coords.lng);
-            return;
+            if (coords) {
+              renderAt(coords.lat, coords.lng);
+              return;
+            }
           }
         }
 
-        const geoRes = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
-        if (!geoRes.ok) {
-          if (!cancelled) setPlaceMapError("주소 좌표를 찾지 못했어요.");
+        for (const q of queries) {
+          const geoRes = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+          if (!geoRes.ok) continue;
+          const geo = (await geoRes.json()) as { lat?: number | null; lng?: number | null };
+          const lat = Number(geo.lat);
+          const lng = Number(geo.lng);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+          renderAt(lat, lng);
           return;
         }
-        const geo = (await geoRes.json()) as { lat?: number | null; lng?: number | null };
-        const lat = Number(geo.lat);
-        const lng = Number(geo.lng);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-          if (!cancelled) setPlaceMapError("주소 좌표를 찾지 못했어요.");
-          return;
-        }
-        renderAt(lat, lng);
+        if (!cancelled) setPlaceMapError("주소 좌표를 찾지 못했어요.");
       } catch {
-        if (!cancelled) setPlaceMapError("지도를 표시하는 중 오류가 발생했어요.");
+        if (!cancelled) setPlaceMapError("지도 로딩에 실패했어요. 네이버 지도 열기로 확인해 주세요.");
       }
     };
 
