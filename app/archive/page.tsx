@@ -12,6 +12,11 @@ type BookStatusFilter = "all" | "reading" | "paused" | "done";
 type BookRunStatus = "reading" | "paused" | "done";
 type PlaceStatus = "wishlist" | "visited" | "pass";
 type WishStatus = "wishlist" | "planned" | "bought";
+type NaverMapsApi = {
+  LatLng: new (lat: number, lng: number) => unknown;
+  Map: new (el: HTMLElement, options: { center: unknown; zoom: number }) => unknown;
+  Marker: new (options: { map: unknown; position: unknown }) => unknown;
+};
 
 type ArchiveItem = {
   id: string;
@@ -197,10 +202,6 @@ function buildNaverMapSearchUrl(query: string) {
   return `https://map.naver.com/v5/search/${encoded}`;
 }
 
-function buildGoogleMapEmbedUrl(query: string) {
-  return `https://www.google.com/maps?q=${encodeURIComponent(query.trim())}&z=16&output=embed`;
-}
-
 function getStoredArchive() {
   if (typeof window === "undefined") return [];
   const parsed = parseJson<unknown[]>(window.localStorage.getItem(ARCHIVE_STORAGE_KEY), []);
@@ -351,6 +352,8 @@ function ArchivePageInner() {
   const [selectedWishStatus, setSelectedWishStatus] = useState<"all" | WishStatus>("all");
   const [selectedWishId, setSelectedWishId] = useState<string | null>(null);
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
+  const [placeMapError, setPlaceMapError] = useState<string | null>(null);
+  const naverMapClientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? "";
 
   useEffect(() => {
     localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(items));
@@ -667,6 +670,81 @@ function ArchivePageInner() {
     () => filteredPlaces.find((item) => item.id === selectedPlaceId) ?? filteredPlaces[0] ?? null,
     [filteredPlaces, selectedPlaceId],
   );
+
+  useEffect(() => {
+    if (typeFilter !== "place" || !selectedPlace) return;
+    const query = (selectedPlace.placeAddress || "").trim() || selectedPlace.title.trim();
+    const mapEl = document.getElementById("naver-place-map");
+    if (!mapEl) return;
+    if (!query) {
+      setPlaceMapError("주소 정보가 없어 지도를 표시할 수 없어요.");
+      return;
+    }
+    if (!naverMapClientId) {
+      setPlaceMapError("네이버 지도 키가 없어 지도를 표시할 수 없어요.");
+      return;
+    }
+
+    setPlaceMapError(null);
+    let cancelled = false;
+
+    const loadNaverMapSdk = async () => {
+      const mapSdkId = "naver-map-sdk";
+      const existing = document.getElementById(mapSdkId) as HTMLScriptElement | null;
+      if (existing) {
+        if ((window as typeof window & { naver?: { maps?: unknown } }).naver?.maps) return;
+        await new Promise<void>((resolve, reject) => {
+          existing.addEventListener("load", () => resolve(), { once: true });
+          existing.addEventListener("error", () => reject(new Error("sdk-load-failed")), { once: true });
+        });
+        return;
+      }
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.id = mapSdkId;
+        script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}`;
+        script.async = true;
+        script.addEventListener("load", () => resolve(), { once: true });
+        script.addEventListener("error", () => reject(new Error("sdk-load-failed")), { once: true });
+        document.head.appendChild(script);
+      });
+    };
+
+    const render = async () => {
+      try {
+        const geoRes = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+        if (!geoRes.ok) {
+          if (!cancelled) setPlaceMapError("주소 좌표를 찾지 못했어요.");
+          return;
+        }
+        const geo = (await geoRes.json()) as { lat?: number | null; lng?: number | null };
+        const lat = Number(geo.lat);
+        const lng = Number(geo.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          if (!cancelled) setPlaceMapError("주소 좌표를 찾지 못했어요.");
+          return;
+        }
+
+        await loadNaverMapSdk();
+        const maps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
+        if (!maps) {
+          if (!cancelled) setPlaceMapError("네이버 지도를 불러오지 못했어요.");
+          return;
+        }
+        const point = new maps.LatLng(lat, lng);
+        const map = new maps.Map(mapEl, { center: point, zoom: 16 });
+        new maps.Marker({ map, position: point });
+        if (!cancelled) setPlaceMapError(null);
+      } catch {
+        if (!cancelled) setPlaceMapError("지도를 표시하는 중 오류가 발생했어요.");
+      }
+    };
+
+    void render();
+    return () => {
+      cancelled = true;
+    };
+  }, [typeFilter, selectedPlace, naverMapClientId]);
   const wishItems = useMemo(
     () =>
       items
@@ -1293,15 +1371,16 @@ function ArchivePageInner() {
                     </div>
                   </div>
                   <div className="relative mt-2 rounded-md border border-[#dddddd] bg-white p-2">
-                    <iframe
-                      title={`${selectedPlace.title}-map`}
-                      src={buildGoogleMapEmbedUrl(
-                        (selectedPlace.placeAddress || "").trim() || selectedPlace.title,
-                      )}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      className="h-[170px] w-full rounded-md border border-[#eeeeee]"
-                    />
+                    {placeMapError ? (
+                      <div className="flex h-[170px] w-full items-center justify-center rounded-md border border-[#eeeeee] bg-white px-3 text-center text-xs text-[#666666]">
+                        {placeMapError}
+                      </div>
+                    ) : (
+                      <div
+                        id="naver-place-map"
+                        className="h-[170px] w-full rounded-md border border-[#eeeeee]"
+                      />
+                    )}
                     <a
                       href={buildNaverMapSearchUrl(
                         (selectedPlace.placeAddress || "").trim() || selectedPlace.title,

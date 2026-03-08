@@ -2605,7 +2605,7 @@ function HomePage() {
             </ul>
           </article>
 
-          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[560px]">
+          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[500px]">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-base font-semibold">
                 <span className="mr-1 text-lg">✅</span>투두 리스트
