@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-
-const SESSION_KEY = "diary-os.session.v1";
+import { SESSION_KEY, setSavedSyncEmail } from "@/lib/cloud-sync";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,6 +24,7 @@ export default function LoginPage() {
         signedAt: new Date().toISOString(),
       }),
     );
+    setSavedSyncEmail(email.trim());
     setMessage("로그인 저장 완료. 스마트 동기화 화면으로 이동합니다.");
     router.push("/sync?auto=1");
   }
@@ -68,6 +68,7 @@ export default function LoginPage() {
           className="rounded-md border border-[#dddddd] px-2 py-1"
           onClick={() => {
             localStorage.removeItem(SESSION_KEY);
+            setSavedSyncEmail("");
             setMessage("저장된 로그인 상태를 삭제했어요.");
           }}
         >
