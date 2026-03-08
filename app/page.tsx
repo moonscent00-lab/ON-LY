@@ -703,6 +703,7 @@ function HomePage() {
   const [googleSyncInfo, setGoogleSyncInfo] = useState<string | null>(null);
   const hasAutoSyncedOnEntryRef = useRef(false);
   const wasSchedulePanelOpenRef = useRef(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos));
@@ -748,6 +749,15 @@ function HomePage() {
   useEffect(() => {
     localStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(reports));
   }, [reports]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobileViewport(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2411,6 +2421,503 @@ function HomePage() {
     );
   }
 
+  function renderTodoInputPanel() {
+    return (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-[#444444]">✅ 투두 입력</h3>
+          <button
+            type="button"
+            className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+            onClick={() => setIsTodoInputOpen(false)}
+          >
+            닫기
+          </button>
+        </div>
+        <form className="mt-3 space-y-1.5" onSubmit={addTodo}>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs outline-none focus:border-accent"
+                  placeholder="할 일 입력"
+                  value={todoInput}
+                  onChange={(e) => setTodoInput(e.target.value)}
+                />
+                <select
+                  className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
+                  value={todoKindInput}
+                  onChange={(e) => setTodoKindInput(e.target.value as TodoKind)}
+                >
+                  <option value="quick">3분컷</option>
+                  <option value="date">날짜 지정</option>
+                  <option value="project">프로젝트</option>
+                  <option value="someday">언젠가</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {todoKindInput === "date" ? (
+                  <input
+                    type="date"
+                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
+                    value={todoDueDateInput}
+                    onChange={(e) => setTodoDueDateInput(e.target.value)}
+                  />
+                ) : (
+                  <div />
+                )}
+                <label className="flex items-center gap-2 rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={todoLinkInput}
+                    onChange={(e) => setTodoLinkInput(e.target.checked)}
+                  />
+                  OneThing
+                </label>
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="h-9 rounded-md border border-transparent bg-accent px-3 py-1 text-xs font-medium text-[#444444] shadow-sm sm:h-full"
+              style={primaryButtonStyle}
+            >
+              추가
+            </button>
+          </div>
+        </form>
+        <div className="mt-3 rounded-md border border-[#dddddd] bg-white p-2">
+          <p className="text-xs font-semibold text-[#444444]">최근 입력</p>
+          <ul className="mt-1 max-h-44 space-y-1 overflow-y-auto pr-1">
+            {recentTodoInputs.map((todo) => (
+              <li
+                key={`todo-input-${todo.id}`}
+                className="rounded-md border border-[#eeeeee] bg-white px-2 py-1 text-xs"
+              >
+                {todo.text}
+              </li>
+            ))}
+            {recentTodoInputs.length === 0 ? (
+              <li className="rounded-md border border-[#eeeeee] bg-white px-2 py-1 text-xs text-[#777777]">
+                입력된 투두가 없습니다.
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      </>
+    );
+  }
+
+  function renderDoneTodoPanel() {
+    if (!doneTodoModal) return null;
+    return (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-[#444444]">✅ {doneTodoModal.title} 완료 목록</h3>
+          <button
+            type="button"
+            className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+            onClick={() => setDoneTodoModal(null)}
+          >
+            닫기
+          </button>
+        </div>
+        <ul className="mt-2 space-y-1">
+          {doneTodoModal.items.length === 0 ? (
+            <li className="rounded-md border border-[#eeeeee] bg-white px-2 py-2 text-xs text-[#777777]">
+              완료된 항목이 없습니다.
+            </li>
+          ) : (
+            doneTodoModal.items.map((todo) => (
+              <li
+                key={`done-${todo.id}`}
+                className="rounded-md border border-[#dddddd] bg-white px-2 py-1.5 text-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="line-through text-stone-400">{todo.text}</span>
+                  <button
+                    type="button"
+                    className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
+                    onClick={() =>
+                      setTodos((prev) =>
+                        prev.map((item) =>
+                          item.id === todo.id ? { ...item, done: false } : item,
+                        ),
+                      )
+                    }
+                  >
+                    복원
+                  </button>
+                </div>
+              </li>
+            ))
+          )}
+        </ul>
+      </>
+    );
+  }
+
+  function renderSchedulePanel() {
+    return (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-[#444444]">🗓️ 일정 입력/연동</h3>
+          <button
+            type="button"
+            className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+            onClick={() => setIsSchedulePanelOpen(false)}
+          >
+            닫기
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-1">
+          {(["day", "week", "month"] as CalendarViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className="rounded-md border border-[#dddddd] px-2 py-1 text-xs text-[#444444]"
+              style={{ backgroundColor: scheduleViewMode === mode ? currentAccent.soft : "#ffffff" }}
+              onClick={() => setScheduleViewMode(mode)}
+            >
+              {mode === "day" ? "Day" : mode === "week" ? "Week" : "Month"}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
+          {googleAccessToken ? (
+            <>
+              <button
+                type="button"
+                className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                onClick={() =>
+                  void syncGoogleTodayEvents(
+                    googleAccessToken,
+                    undefined,
+                    currentRange.start,
+                    currentRange.end,
+                    currentRange.label,
+                    googleCalendarFilterIds,
+                  )
+                }
+                disabled={googleSyncing}
+              >
+                {googleSyncing ? "동기화중..." : "Google 동기화"}
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                onClick={disconnectGoogleCalendar}
+              >
+                연결해제
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+              onClick={connectGoogleCalendar}
+              disabled={!googleCalendarReady}
+            >
+              Google 연결
+            </button>
+          )}
+        </div>
+        {googleError ? <p className="mt-2 text-xs text-rose-600">{googleError}</p> : null}
+        {googleSyncInfo ? <p className="mt-2 text-xs text-[#444444]">{googleSyncInfo}</p> : null}
+        {googleAccessToken && googleCalendars.length > 0 ? (
+          <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-[#444444]">표시할 Google 캘린더</p>
+              <label className="flex items-center gap-1 text-[11px] text-[#444444]">
+                <input
+                  type="checkbox"
+                  checked={googleAutoSyncEnabled}
+                  onChange={(e) => setGoogleAutoSyncEnabled(e.target.checked)}
+                />
+                자동 갱신(2분)
+              </label>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              <button
+                type="button"
+                className="rounded-md border border-[#dddddd] px-2 py-1 text-[11px] text-[#444444]"
+                style={{ backgroundColor: allGoogleCalendarsSelected ? currentAccent.soft : "#ffffff" }}
+                onClick={() =>
+                  setGoogleCalendarFilterIds(
+                    allGoogleCalendarsSelected ? [] : googleCalendars.map((calendar) => calendar.id),
+                  )
+                }
+              >
+                전체
+              </button>
+              {googleCalendars.map((calendar) => {
+                const selected = googleCalendarFilterIds.includes(calendar.id);
+                return (
+                  <button
+                    key={calendar.id}
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md border border-[#dddddd] px-2 py-1 text-[11px] text-[#444444]"
+                    style={{ backgroundColor: selected ? currentAccent.soft : "#ffffff" }}
+                    onClick={() => toggleGoogleCalendarFilter(calendar.id)}
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: calendar.backgroundColor ?? "#9ca3af" }}
+                    />
+                    {calendar.summary}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+        <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
+          <p className="text-xs font-medium text-[#444444]">Apple 캘린더(ICS 공유 링크)</p>
+          <div className="mt-1 grid grid-cols-1 gap-1 sm:grid-cols-[1fr_auto]">
+            <input
+              value={appleIcsInput}
+              onChange={(e) => setAppleIcsInput(e.target.value)}
+              placeholder="https://... .ics"
+              className="min-w-0 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444] sm:whitespace-nowrap"
+              onClick={addAppleIcsUrl}
+            >
+              링크 추가
+            </button>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-[11px] text-[#444444]">등록된 링크 {appleIcsUrls.length}개</p>
+            <button
+              type="button"
+              className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[11px] text-[#444444]"
+              disabled={appleSyncing || appleIcsUrls.length === 0}
+              onClick={() => {
+                const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
+                void syncAppleIcsEvents(range.start, range.end, range.label);
+              }}
+            >
+              {appleSyncing ? "동기화중..." : "전체 동기화"}
+            </button>
+          </div>
+          {appleIcsUrls.length > 0 ? (
+            <ul className="mt-1 max-h-28 space-y-1 overflow-y-auto pr-1">
+              {appleIcsUrls.map((url) => (
+                <li
+                  key={url}
+                  className="flex items-center justify-between gap-2 rounded-md border border-[#dddddd] bg-white px-2 py-1"
+                >
+                  <span className="truncate text-[11px] text-[#444444]" title={url}>
+                    {url}
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[10px] text-[#444444]"
+                    onClick={() => removeAppleIcsUrl(url)}
+                  >
+                    삭제
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-[11px] text-[#777777]">
+              링크를 추가하면 Apple 일정이 한 번에 동기화됩니다.
+            </p>
+          )}
+          {appleError ? <p className="mt-1 text-xs text-rose-600">{appleError}</p> : null}
+          {appleSyncInfo ? <p className="mt-1 text-xs text-[#444444]">{appleSyncInfo}</p> : null}
+        </div>
+        <form className="mt-3 space-y-2" onSubmit={addSchedule}>
+          <input
+            className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+            placeholder="일정 이름"
+            value={scheduleTitleInput}
+            onChange={(e) => setScheduleTitleInput(e.target.value)}
+          />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input
+              type="date"
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+              value={scheduleDateInput}
+              onChange={(e) => setScheduleDateInput(e.target.value)}
+            />
+            <input
+              type="time"
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+              value={scheduleTimeInput}
+              onChange={(e) => setScheduleTimeInput(e.target.value)}
+            />
+            <input
+              type="time"
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+              value={scheduleEndTimeInput}
+              onChange={(e) => setScheduleEndTimeInput(e.target.value)}
+            />
+          </div>
+          <input
+            className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+            placeholder="위치 (선택)"
+            value={scheduleLocationInput}
+            onChange={(e) => setScheduleLocationInput(e.target.value)}
+          />
+          <textarea
+            className="min-h-[72px] w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+            placeholder="메모 (선택)"
+            value={scheduleNoteInput}
+            onChange={(e) => setScheduleNoteInput(e.target.value)}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {activeTracking ? (
+              <>
+                <span className="text-xs text-[#666666]">
+                  추적중:{" "}
+                  {new Date(activeTracking.startedAt).toLocaleTimeString("ko-KR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  })}{" "}
+                  시작
+                </span>
+                <button
+                  type="button"
+                  className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
+                  style={primaryButtonStyle}
+                  onClick={() => void stopTimeTrackingAndSave()}
+                  disabled={scheduleSubmitting}
+                >
+                  종료 후 저장
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                onClick={() => void startTimeTracking()}
+                disabled={scheduleSubmitting}
+              >
+                타임트래커 시작
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <select
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
+              value={scheduleAddTarget}
+              onChange={(e) => setScheduleAddTarget(e.target.value as ScheduleAddTarget)}
+            >
+              <option value="both">저장: 로컬 + Google</option>
+              <option value="local">저장: 로컬만</option>
+              <option value="google">저장: Google만</option>
+            </select>
+            <select
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
+              value={googleTargetCalendarId}
+              onChange={(e) => setGoogleTargetCalendarId(e.target.value)}
+              disabled={!googleAccessToken}
+            >
+              {googleCalendars.length === 0 ? (
+                <option value="primary">Google 캘린더 선택</option>
+              ) : (
+                googleCalendars.map((calendar) => (
+                  <option key={calendar.id} value={calendar.id}>
+                    {calendar.summary}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
+              style={primaryButtonStyle}
+              disabled={scheduleSubmitting}
+            >
+              {scheduleSubmitting ? "저장중..." : "일정 추가"}
+            </button>
+          </div>
+        </form>
+      </>
+    );
+  }
+
+  function renderScheduleEditPanel() {
+    if (!editingSchedule) return null;
+    return (
+      <>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-[#444444]">📝 일정 수정</h3>
+          <button
+            type="button"
+            className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+            onClick={closeScheduleEdit}
+          >
+            닫기
+          </button>
+        </div>
+        <form className="mt-3 space-y-2" onSubmit={saveScheduleEdit}>
+          <input
+            className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+            value={scheduleEditTitleInput}
+            onChange={(e) => setScheduleEditTitleInput(e.target.value)}
+            placeholder="일정 이름"
+          />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input
+              type="date"
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+              value={scheduleEditDateInput}
+              onChange={(e) => setScheduleEditDateInput(e.target.value)}
+            />
+            <input
+              type="time"
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+              value={scheduleEditTimeInput}
+              onChange={(e) => setScheduleEditTimeInput(e.target.value)}
+            />
+            <input
+              type="time"
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+              value={scheduleEditEndTimeInput}
+              onChange={(e) => setScheduleEditEndTimeInput(e.target.value)}
+            />
+          </div>
+          <input
+            className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+            value={scheduleEditLocationInput}
+            onChange={(e) => setScheduleEditLocationInput(e.target.value)}
+            placeholder="위치 (선택)"
+          />
+          <textarea
+            className="min-h-[72px] w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+            value={scheduleEditNoteInput}
+            onChange={(e) => setScheduleEditNoteInput(e.target.value)}
+            placeholder="메모 (선택)"
+          />
+          <div className="flex justify-end gap-1">
+            <button
+              type="button"
+              className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+              onClick={closeScheduleEdit}
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
+              style={primaryButtonStyle}
+              disabled={scheduleEditingId === editingSchedule.id}
+            >
+              {scheduleEditingId === editingSchedule.id ? "저장중..." : "저장"}
+            </button>
+          </div>
+        </form>
+      </>
+    );
+  }
+
   const currentTheme = themePalette[theme];
   const currentAccent = accentPalette[accentTone];
   const primaryButtonStyle = {
@@ -2552,6 +3059,11 @@ function HomePage() {
                 </button>
               </div>
             </div>
+            {isMobileViewport && isSchedulePanelOpen ? (
+              <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
+                {renderSchedulePanel()}
+              </div>
+            ) : null}
             <ul className="mt-2 min-h-0 flex-1 divide-y divide-[#eeeeee] overflow-y-auto pr-1">
               {mergedSelectedDateSchedules.map((item) => (
                 <li
@@ -2603,6 +3115,11 @@ function HomePage() {
                 </li>
               ))}
             </ul>
+            {isMobileViewport && editingSchedule ? (
+              <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
+                {renderScheduleEditPanel()}
+              </div>
+            ) : null}
           </article>
 
           <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[500px]">
@@ -2635,6 +3152,16 @@ function HomePage() {
                 {renderTodoCard("Todo List", otherTodos, false, "🧩", true)}
               </div>
             </div>
+            {isMobileViewport && isTodoInputOpen ? (
+              <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
+                {renderTodoInputPanel()}
+              </div>
+            ) : null}
+            {isMobileViewport && doneTodoModal ? (
+              <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
+                {renderDoneTodoPanel()}
+              </div>
+            ) : null}
           </article>
 
           <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[500px]">
@@ -2861,496 +3388,34 @@ function HomePage() {
           </article>
         </section>
 
-        {isTodoInputOpen ? (
+        {!isMobileViewport && isTodoInputOpen ? (
           <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:items-center sm:p-3">
             <div className="mt-14 max-h-[calc(100dvh-5rem)] w-full max-w-lg overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl sm:mt-0 sm:max-h-[88vh]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-[#444444]">✅ 투두 입력</h3>
-                <button
-                  type="button"
-                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                  onClick={() => setIsTodoInputOpen(false)}
-                >
-                  닫기
-                </button>
-              </div>
-              <form className="mt-3 space-y-1.5" onSubmit={addTodo}>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-                  <div className="space-y-1.5">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <input
-                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs outline-none focus:border-accent"
-                        placeholder="할 일 입력"
-                        value={todoInput}
-                        onChange={(e) => setTodoInput(e.target.value)}
-                      />
-                      <select
-                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
-                        value={todoKindInput}
-                        onChange={(e) => setTodoKindInput(e.target.value as TodoKind)}
-                      >
-                        <option value="quick">3분컷</option>
-                        <option value="date">날짜 지정</option>
-                        <option value="project">프로젝트</option>
-                        <option value="someday">언젠가</option>
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {todoKindInput === "date" ? (
-                        <input
-                          type="date"
-                          className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
-                          value={todoDueDateInput}
-                          onChange={(e) => setTodoDueDateInput(e.target.value)}
-                        />
-                      ) : (
-                        <div />
-                      )}
-                      <label className="flex items-center gap-2 rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={todoLinkInput}
-                          onChange={(e) => setTodoLinkInput(e.target.checked)}
-                        />
-                        OneThing
-                      </label>
-                    </div>
-                  </div>
-                  <button
-                    type="submit"
-                    className="h-9 rounded-md border border-transparent bg-accent px-3 py-1 text-xs font-medium text-[#444444] shadow-sm sm:h-full"
-                    style={primaryButtonStyle}
-                  >
-                    추가
-                  </button>
-                </div>
-              </form>
-              <div className="mt-3 rounded-md border border-[#dddddd] bg-white p-2">
-                <p className="text-xs font-semibold text-[#444444]">최근 입력</p>
-                <ul className="mt-1 max-h-44 space-y-1 overflow-y-auto pr-1">
-                  {recentTodoInputs.map((todo) => (
-                    <li key={`todo-input-${todo.id}`} className="rounded-md border border-[#eeeeee] bg-white px-2 py-1 text-xs">
-                      {todo.text}
-                    </li>
-                  ))}
-                  {recentTodoInputs.length === 0 ? (
-                    <li className="rounded-md border border-[#eeeeee] bg-white px-2 py-1 text-xs text-[#777777]">
-                      입력된 투두가 없습니다.
-                    </li>
-                  ) : null}
-                </ul>
-              </div>
+              {renderTodoInputPanel()}
             </div>
           </div>
         ) : null}
 
-        {doneTodoModal ? (
+        {!isMobileViewport && doneTodoModal ? (
           <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:items-center sm:p-3">
             <div className="mt-14 max-h-[calc(100dvh-5rem)] w-full max-w-md overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl sm:mt-0 sm:max-h-[80vh]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-[#444444]">✅ {doneTodoModal.title} 완료 목록</h3>
-                <button
-                  type="button"
-                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                  onClick={() => setDoneTodoModal(null)}
-                >
-                  닫기
-                </button>
-              </div>
-              <ul className="mt-2 space-y-1">
-                {doneTodoModal.items.length === 0 ? (
-                  <li className="rounded-md border border-[#eeeeee] bg-white px-2 py-2 text-xs text-[#777777]">
-                    완료된 항목이 없습니다.
-                  </li>
-                ) : (
-                  doneTodoModal.items.map((todo) => (
-                    <li key={`done-${todo.id}`} className="rounded-md border border-[#dddddd] bg-white px-2 py-1.5 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="line-through text-stone-400">{todo.text}</span>
-                        <button
-                          type="button"
-                          className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444]"
-                          onClick={() =>
-                            setTodos((prev) =>
-                              prev.map((item) =>
-                                item.id === todo.id ? { ...item, done: false } : item,
-                              ),
-                            )
-                          }
-                        >
-                          복원
-                        </button>
-                      </div>
-                    </li>
-                  ))
-                )}
-              </ul>
+              {renderDoneTodoPanel()}
             </div>
           </div>
         ) : null}
 
-        {isSchedulePanelOpen ? (
+        {!isMobileViewport && isSchedulePanelOpen ? (
           <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:items-center sm:p-3">
             <div className="mt-14 max-h-[calc(100dvh-5rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl sm:mt-0 sm:max-h-[88vh]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-[#444444]">🗓️ 일정 입력/연동</h3>
-                <button
-                  type="button"
-                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                  onClick={() => setIsSchedulePanelOpen(false)}
-                >
-                  닫기
-                </button>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-1">
-                {(["day", "week", "month"] as CalendarViewMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    className="rounded-md border border-[#dddddd] px-2 py-1 text-xs text-[#444444]"
-                    style={{
-                      backgroundColor:
-                        scheduleViewMode === mode ? currentAccent.soft : "#ffffff",
-                    }}
-                    onClick={() => setScheduleViewMode(mode)}
-                  >
-                    {mode === "day" ? "Day" : mode === "week" ? "Week" : "Month"}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
-                {googleAccessToken ? (
-                  <>
-                    <button
-                      type="button"
-                      className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                      onClick={() =>
-                        void syncGoogleTodayEvents(
-                          googleAccessToken,
-                          undefined,
-                          currentRange.start,
-                          currentRange.end,
-                          currentRange.label,
-                          googleCalendarFilterIds,
-                        )
-                      }
-                      disabled={googleSyncing}
-                    >
-                      {googleSyncing ? "동기화중..." : "Google 동기화"}
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                      onClick={disconnectGoogleCalendar}
-                    >
-                      연결해제
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                    onClick={connectGoogleCalendar}
-                    disabled={!googleCalendarReady}
-                  >
-                    Google 연결
-                  </button>
-                )}
-              </div>
-              {googleError ? <p className="mt-2 text-xs text-rose-600">{googleError}</p> : null}
-              {googleSyncInfo ? <p className="mt-2 text-xs text-[#444444]">{googleSyncInfo}</p> : null}
-              {googleAccessToken && googleCalendars.length > 0 ? (
-                <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium text-[#444444]">표시할 Google 캘린더</p>
-                    <label className="flex items-center gap-1 text-[11px] text-[#444444]">
-                      <input
-                        type="checkbox"
-                        checked={googleAutoSyncEnabled}
-                        onChange={(e) => setGoogleAutoSyncEnabled(e.target.checked)}
-                      />
-                      자동 갱신(2분)
-                    </label>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    <button
-                      type="button"
-                      className="rounded-md border border-[#dddddd] px-2 py-1 text-[11px] text-[#444444]"
-                      style={{
-                        backgroundColor: allGoogleCalendarsSelected
-                          ? currentAccent.soft
-                          : "#ffffff",
-                      }}
-                      onClick={() =>
-                        setGoogleCalendarFilterIds(
-                          allGoogleCalendarsSelected
-                            ? []
-                            : googleCalendars.map((calendar) => calendar.id),
-                        )
-                      }
-                    >
-                      전체
-                    </button>
-                    {googleCalendars.map((calendar) => {
-                      const selected = googleCalendarFilterIds.includes(calendar.id);
-                      return (
-                        <button
-                          key={calendar.id}
-                          type="button"
-                          className="inline-flex items-center gap-1 rounded-md border border-[#dddddd] px-2 py-1 text-[11px] text-[#444444]"
-                          style={{ backgroundColor: selected ? currentAccent.soft : "#ffffff" }}
-                          onClick={() => toggleGoogleCalendarFilter(calendar.id)}
-                        >
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: calendar.backgroundColor ?? "#9ca3af" }}
-                          />
-                          {calendar.summary}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-              <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
-                <p className="text-xs font-medium text-[#444444]">Apple 캘린더(ICS 공유 링크)</p>
-                <div className="mt-1 grid grid-cols-1 gap-1 sm:grid-cols-[1fr_auto]">
-                  <input
-                    value={appleIcsInput}
-                    onChange={(e) => setAppleIcsInput(e.target.value)}
-                    placeholder="https://... .ics"
-                    className="min-w-0 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs outline-none focus:border-accent"
-                  />
-                  <button
-                    type="button"
-                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444] sm:whitespace-nowrap"
-                    onClick={addAppleIcsUrl}
-                  >
-                    링크 추가
-                  </button>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-[#444444]">등록된 링크 {appleIcsUrls.length}개</p>
-                  <button
-                    type="button"
-                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[11px] text-[#444444]"
-                    disabled={appleSyncing || appleIcsUrls.length === 0}
-                    onClick={() => {
-                      const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
-                      void syncAppleIcsEvents(range.start, range.end, range.label);
-                    }}
-                  >
-                    {appleSyncing ? "동기화중..." : "전체 동기화"}
-                  </button>
-                </div>
-                {appleIcsUrls.length > 0 ? (
-                  <ul className="mt-1 max-h-28 space-y-1 overflow-y-auto pr-1">
-                    {appleIcsUrls.map((url) => (
-                      <li
-                        key={url}
-                        className="flex items-center justify-between gap-2 rounded-md border border-[#dddddd] bg-white px-2 py-1"
-                      >
-                        <span className="truncate text-[11px] text-[#444444]" title={url}>
-                          {url}
-                        </span>
-                        <button
-                          type="button"
-                          className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[10px] text-[#444444]"
-                          onClick={() => removeAppleIcsUrl(url)}
-                        >
-                          삭제
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-[11px] text-[#777777]">
-                    링크를 추가하면 Apple 일정이 한 번에 동기화됩니다.
-                  </p>
-                )}
-                {appleError ? <p className="mt-1 text-xs text-rose-600">{appleError}</p> : null}
-                {appleSyncInfo ? <p className="mt-1 text-xs text-[#444444]">{appleSyncInfo}</p> : null}
-              </div>
-              <form className="mt-3 space-y-2" onSubmit={addSchedule}>
-                <input
-                  className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                  placeholder="일정 이름"
-                  value={scheduleTitleInput}
-                  onChange={(e) => setScheduleTitleInput(e.target.value)}
-                />
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <input
-                    type="date"
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                    value={scheduleDateInput}
-                    onChange={(e) => setScheduleDateInput(e.target.value)}
-                  />
-                  <input
-                    type="time"
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                    value={scheduleTimeInput}
-                    onChange={(e) => setScheduleTimeInput(e.target.value)}
-                  />
-                  <input
-                    type="time"
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                    value={scheduleEndTimeInput}
-                    onChange={(e) => setScheduleEndTimeInput(e.target.value)}
-                  />
-                </div>
-                <input
-                  className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                  placeholder="위치 (선택)"
-                  value={scheduleLocationInput}
-                  onChange={(e) => setScheduleLocationInput(e.target.value)}
-                />
-                <textarea
-                  className="min-h-[72px] w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                  placeholder="메모 (선택)"
-                  value={scheduleNoteInput}
-                  onChange={(e) => setScheduleNoteInput(e.target.value)}
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  {activeTracking ? (
-                    <>
-                      <span className="text-xs text-[#666666]">
-                        추적중: {new Date(activeTracking.startedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })} 시작
-                      </span>
-                      <button
-                        type="button"
-                        className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
-                        style={primaryButtonStyle}
-                        onClick={() => void stopTimeTrackingAndSave()}
-                        disabled={scheduleSubmitting}
-                      >
-                        종료 후 저장
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                      onClick={() => void startTimeTracking()}
-                      disabled={scheduleSubmitting}
-                    >
-                      타임트래커 시작
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <select
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-                    value={scheduleAddTarget}
-                    onChange={(e) =>
-                      setScheduleAddTarget(e.target.value as ScheduleAddTarget)
-                    }
-                  >
-                    <option value="both">저장: 로컬 + Google</option>
-                    <option value="local">저장: 로컬만</option>
-                    <option value="google">저장: Google만</option>
-                  </select>
-                  <select
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-                    value={googleTargetCalendarId}
-                    onChange={(e) => setGoogleTargetCalendarId(e.target.value)}
-                    disabled={!googleAccessToken}
-                  >
-                    {googleCalendars.length === 0 ? (
-                      <option value="primary">Google 캘린더 선택</option>
-                    ) : (
-                      googleCalendars.map((calendar) => (
-                        <option key={calendar.id} value={calendar.id}>
-                          {calendar.summary}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
-                    style={primaryButtonStyle}
-                    disabled={scheduleSubmitting}
-                  >
-                    {scheduleSubmitting ? "저장중..." : "일정 추가"}
-                  </button>
-                </div>
-              </form>
+              {renderSchedulePanel()}
             </div>
           </div>
         ) : null}
 
-        {editingSchedule ? (
+        {!isMobileViewport && editingSchedule ? (
           <div className="fixed inset-0 z-[9998] flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:items-center sm:p-3">
             <div className="mt-14 w-full max-w-md rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl sm:mt-0">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-[#444444]">📝 일정 수정</h3>
-                <button
-                  type="button"
-                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                  onClick={closeScheduleEdit}
-                >
-                  닫기
-                </button>
-              </div>
-              <form className="mt-3 space-y-2" onSubmit={saveScheduleEdit}>
-                <input
-                  className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                  value={scheduleEditTitleInput}
-                  onChange={(e) => setScheduleEditTitleInput(e.target.value)}
-                  placeholder="일정 이름"
-                />
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <input
-                    type="date"
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                    value={scheduleEditDateInput}
-                    onChange={(e) => setScheduleEditDateInput(e.target.value)}
-                  />
-                  <input
-                    type="time"
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                    value={scheduleEditTimeInput}
-                    onChange={(e) => setScheduleEditTimeInput(e.target.value)}
-                  />
-                  <input
-                    type="time"
-                    className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                    value={scheduleEditEndTimeInput}
-                    onChange={(e) => setScheduleEditEndTimeInput(e.target.value)}
-                  />
-                </div>
-                <input
-                  className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                  value={scheduleEditLocationInput}
-                  onChange={(e) => setScheduleEditLocationInput(e.target.value)}
-                  placeholder="위치 (선택)"
-                />
-                <textarea
-                  className="min-h-[72px] w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
-                  value={scheduleEditNoteInput}
-                  onChange={(e) => setScheduleEditNoteInput(e.target.value)}
-                  placeholder="메모 (선택)"
-                />
-                <div className="flex justify-end gap-1">
-                  <button
-                    type="button"
-                    className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                    onClick={closeScheduleEdit}
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
-                    style={primaryButtonStyle}
-                    disabled={scheduleEditingId === editingSchedule.id}
-                  >
-                    {scheduleEditingId === editingSchedule.id ? "저장중..." : "저장"}
-                  </button>
-                </div>
-              </form>
+              {renderScheduleEditPanel()}
             </div>
           </div>
         ) : null}
