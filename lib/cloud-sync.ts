@@ -4,6 +4,7 @@ export const SESSION_KEY = "diary-os.session.v1";
 const PREFIX = "diary-os.";
 const SYNC_META_KEY = "diary-os.sync-meta.v1";
 export const SYNC_EMAIL_KEY = "diary-os.sync-email.v1";
+const SYNC_BACKUP_KEY = "diary-os.sync-backup.latest.v1";
 
 type KeyMeta = {
   updatedAt: string;
@@ -113,6 +114,34 @@ function dateToMs(value?: string) {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+function isEmptyLikeValue(value: string) {
+  const raw = value.trim();
+  if (!raw || raw === "null" || raw === "undefined" || raw === '""' || raw === "[]" || raw === "{}") {
+    return true;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed === "string") return parsed.trim().length === 0;
+    if (Array.isArray(parsed)) return parsed.length === 0;
+    if (parsed && typeof parsed === "object") return Object.keys(parsed).length === 0;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+function saveSyncBackup(payload: Record<string, string>, meta: SyncMetaMap) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    SYNC_BACKUP_KEY,
+    JSON.stringify({
+      savedAt: new Date().toISOString(),
+      payload,
+      meta,
+    }),
+  );
+}
+
 function normalizeLocalState() {
   const payload = getLocalPayload();
   const prevMeta = getLocalMeta();
@@ -179,6 +208,27 @@ function mergeByLatest(
         cloudAt > localAt ? cloudMeta[key] ?? localMeta[key] : localMeta[key] ?? cloudMeta[key];
       if (!mergedMeta[key]) {
         mergedMeta[key] = { updatedAt: new Date().toISOString(), hash: hashString(localValue) };
+      }
+      return;
+    }
+
+    const localEmpty = isEmptyLikeValue(localValue);
+    const cloudEmpty = isEmptyLikeValue(cloudValue);
+    if (localEmpty !== cloudEmpty) {
+      if (cloudEmpty) {
+        mergedPayload[key] = localValue;
+        mergedMeta[key] = localMeta[key] ?? {
+          updatedAt: new Date().toISOString(),
+          hash: hashString(localValue),
+        };
+        localWins += 1;
+      } else {
+        mergedPayload[key] = cloudValue;
+        mergedMeta[key] = cloudMeta[key] ?? {
+          updatedAt: new Date().toISOString(),
+          hash: hashString(cloudValue),
+        };
+        cloudWins += 1;
       }
       return;
     }
@@ -282,6 +332,7 @@ export async function runSmartSync({
   const now = new Date().toISOString();
 
   if (!cloudRow?.payload) {
+    saveSyncBackup(local.payload, local.meta);
     await saveCloudRow(
       email,
       { payload: local.payload, meta: local.meta, updated_at: now },
@@ -298,6 +349,7 @@ export async function runSmartSync({
   }
 
   const merged = mergeByLatest(local.payload, local.meta, cloudRow.payload ?? {}, cloudRow.meta ?? {});
+  saveSyncBackup(local.payload, local.meta);
   applyPayloadToLocal(merged.payload);
   setLocalMeta(merged.meta);
   await saveCloudRow(
