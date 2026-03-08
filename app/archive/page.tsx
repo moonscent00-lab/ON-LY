@@ -751,8 +751,37 @@ function ArchivePageInner() {
         ].filter(Boolean);
         if (queries.length === 0) return;
 
+        const fallbackWithOpenStreetMap = async () => {
+          for (const query of queries) {
+            try {
+              const res = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+                { headers: { Accept: "application/json" } },
+              );
+              if (!res.ok) continue;
+              const rows = (await res.json()) as Array<{ lat?: string; lon?: string }>;
+              const first = rows[0];
+              if (!first) continue;
+              const lat = Number(first.lat);
+              const lng = Number(first.lon);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+              const point = new maps.LatLng(lat, lng);
+              map.setCenter(point);
+              if (typeof maps.Marker === "function") {
+                new maps.Marker({ map, position: point });
+              }
+              return;
+            } catch {
+              // ignore and try next query
+            }
+          }
+        };
+
         const tryGeocode = (index: number) => {
-          if (index >= queries.length) return;
+          if (index >= queries.length) {
+            void fallbackWithOpenStreetMap();
+            return;
+          }
           geocode({ query: queries[index] }, (_status, response) => {
             try {
               const address = response?.v2?.addresses?.[0];

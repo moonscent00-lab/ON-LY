@@ -664,6 +664,7 @@ function HomePage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSchedulePanelOpen, setIsSchedulePanelOpen] = useState(false);
   const [isRoutineInputOpen, setIsRoutineInputOpen] = useState(false);
+  const [isTodoInputOpen, setIsTodoInputOpen] = useState(false);
   const [todoExpandedMap, setTodoExpandedMap] = useState<Record<string, boolean>>(
     {},
   );
@@ -821,17 +822,19 @@ function HomePage() {
   }, []);
 
   useEffect(() => {
-    const hasOpenModal = isSettingsOpen || isRoutineInputOpen || isSchedulePanelOpen;
+    const hasOpenModal =
+      isSettingsOpen || isRoutineInputOpen || isSchedulePanelOpen || isTodoInputOpen;
     if (!hasOpenModal) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (isSettingsOpen) setIsSettingsOpen(false);
       if (isRoutineInputOpen) setIsRoutineInputOpen(false);
       if (isSchedulePanelOpen) setIsSchedulePanelOpen(false);
+      if (isTodoInputOpen) setIsTodoInputOpen(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isSettingsOpen, isRoutineInputOpen, isSchedulePanelOpen]);
+  }, [isSettingsOpen, isRoutineInputOpen, isSchedulePanelOpen, isTodoInputOpen]);
 
   useEffect(() => {
     if (searchParams.get("settings") === "1") {
@@ -888,6 +891,13 @@ function HomePage() {
   );
   const otherTodos = useMemo(
     () => todos.filter((item) => !item.linkedToOneThing),
+    [todos],
+  );
+  const recentTodoInputs = useMemo(
+    () =>
+      [...todos]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 8),
     [todos],
   );
   const actionableTodos = useMemo(
@@ -2595,67 +2605,29 @@ function HomePage() {
             </ul>
           </article>
 
-          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[500px]">
+          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[560px]">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-base font-semibold">
-                <span className="mr-1 text-lg">✅</span>투두 추가 / 리스트
+                <span className="mr-1 text-lg">✅</span>투두 리스트
               </h2>
-              <Link
-                href="/projects"
-                className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
-                style={primaryButtonStyle}
-              >
-                프로젝트
-              </Link>
-            </div>
-            <form className="space-y-1.5" onSubmit={addTodo}>
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs outline-none focus:border-accent"
-                      placeholder="할 일 입력"
-                      value={todoInput}
-                      onChange={(e) => setTodoInput(e.target.value)}
-                    />
-                    <select
-                      className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
-                      value={todoKindInput}
-                      onChange={(e) => setTodoKindInput(e.target.value as TodoKind)}
-                    >
-                      <option value="quick">3분컷</option>
-                      <option value="date">날짜 지정</option>
-                      <option value="project">프로젝트</option>
-                      <option value="someday">언젠가</option>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="date"
-                      className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
-                      value={todoDueDateInput}
-                      onChange={(e) => setTodoDueDateInput(e.target.value)}
-                    />
-                    <label className="flex items-center gap-2 rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={todoLinkInput}
-                        onChange={(e) => setTodoLinkInput(e.target.checked)}
-                      />
-                      OneThing
-                    </label>
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  className="h-full rounded-md border border-transparent bg-accent px-3 py-1 text-xs font-medium text-[#444444] shadow-sm"
+              <div className="flex items-center gap-1">
+                <Link
+                  href="/projects"
+                  className="rounded-md border border-transparent bg-accent px-2 py-1 text-xs font-medium text-[#444444] shadow-sm"
                   style={primaryButtonStyle}
                 >
-                  추가
+                  프로젝트
+                </Link>
+                <button
+                  type="button"
+                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                  onClick={() => setIsTodoInputOpen(true)}
+                >
+                  투두 입력
                 </button>
               </div>
-            </form>
-            <div className="mt-2 flex flex-col gap-1 md:min-h-0 md:flex-1 md:grid md:grid-rows-[6fr_4fr] md:overflow-hidden">
+            </div>
+            <div className="mt-1 flex flex-col gap-1 md:min-h-0 md:flex-1 md:grid md:grid-rows-[6fr_4fr] md:overflow-hidden">
               <div className="min-h-0">
                 {renderTodoCard("OneThing Todo List", filteredOneThingTodos, true, "🎯", true)}
               </div>
@@ -2888,6 +2860,85 @@ function HomePage() {
             </ul>
           </article>
         </section>
+
+        {isTodoInputOpen ? (
+          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
+            <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-[#444444]">✅ 투두 입력</h3>
+                <button
+                  type="button"
+                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
+                  onClick={() => setIsTodoInputOpen(false)}
+                >
+                  닫기
+                </button>
+              </div>
+              <form className="mt-3 space-y-1.5" onSubmit={addTodo}>
+                <div className="grid grid-cols-[1fr_auto] gap-2">
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs outline-none focus:border-accent"
+                        placeholder="할 일 입력"
+                        value={todoInput}
+                        onChange={(e) => setTodoInput(e.target.value)}
+                      />
+                      <select
+                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
+                        value={todoKindInput}
+                        onChange={(e) => setTodoKindInput(e.target.value as TodoKind)}
+                      >
+                        <option value="quick">3분컷</option>
+                        <option value="date">날짜 지정</option>
+                        <option value="project">프로젝트</option>
+                        <option value="someday">언젠가</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        className="rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs"
+                        value={todoDueDateInput}
+                        onChange={(e) => setTodoDueDateInput(e.target.value)}
+                      />
+                      <label className="flex items-center gap-2 rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={todoLinkInput}
+                          onChange={(e) => setTodoLinkInput(e.target.checked)}
+                        />
+                        OneThing
+                      </label>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    className="h-full rounded-md border border-transparent bg-accent px-3 py-1 text-xs font-medium text-[#444444] shadow-sm"
+                    style={primaryButtonStyle}
+                  >
+                    추가
+                  </button>
+                </div>
+              </form>
+              <div className="mt-3 rounded-md border border-[#dddddd] bg-white p-2">
+                <p className="text-xs font-semibold text-[#444444]">최근 입력</p>
+                <ul className="mt-1 max-h-44 space-y-1 overflow-y-auto pr-1">
+                  {recentTodoInputs.map((todo) => (
+                    <li key={`todo-input-${todo.id}`} className="rounded-md border border-[#eeeeee] bg-white px-2 py-1 text-xs">
+                      {todo.text}
+                    </li>
+                  ))}
+                  {recentTodoInputs.length === 0 ? (
+                    <li className="rounded-md border border-[#eeeeee] bg-white px-2 py-1 text-xs text-[#777777]">
+                      입력된 투두가 없습니다.
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {doneTodoModal ? (
           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
