@@ -16,6 +16,16 @@ type NaverMapsApi = {
   LatLng: new (lat: number, lng: number) => unknown;
   Map: new (el: HTMLElement, options: { center: unknown; zoom: number }) => unknown;
   Marker: new (options: { map: unknown; position: unknown }) => unknown;
+  Service?: {
+    geocode: (
+      params: { query: string },
+      cb: (
+        status: string,
+        response: { v2?: { addresses?: Array<{ x?: string; y?: string }> } },
+      ) => void,
+    ) => void;
+    Status?: { OK?: string };
+  };
 };
 
 type ArchiveItem = {
@@ -702,7 +712,7 @@ function ArchivePageInner() {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement("script");
         script.id = mapSdkId;
-        script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}`;
+        script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}&submodules=geocoder`;
         script.async = true;
         script.addEventListener("load", () => resolve(), { once: true });
         script.addEventListener("error", () => reject(new Error("sdk-load-failed")), { once: true });
@@ -712,6 +722,45 @@ function ArchivePageInner() {
 
     const render = async () => {
       try {
+        await loadNaverMapSdk();
+        const maps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
+        if (!maps) {
+          if (!cancelled) setPlaceMapError("네이버 지도를 불러오지 못했어요.");
+          return;
+        }
+        const serviceGeocode = maps.Service?.geocode;
+        const serviceStatusOk = maps.Service?.Status?.OK;
+
+        const renderAt = (lat: number, lng: number) => {
+          const point = new maps.LatLng(lat, lng);
+          const map = new maps.Map(mapEl, { center: point, zoom: 16 });
+          new maps.Marker({ map, position: point });
+          if (!cancelled) setPlaceMapError(null);
+        };
+
+        if (typeof serviceGeocode === "function") {
+          const coords = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+            serviceGeocode({ query }, (status, response) => {
+              if (serviceStatusOk && status !== serviceStatusOk) {
+                resolve(null);
+                return;
+              }
+              const addr = response?.v2?.addresses?.[0];
+              const lat = Number(addr?.y);
+              const lng = Number(addr?.x);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                resolve(null);
+                return;
+              }
+              resolve({ lat, lng });
+            });
+          });
+          if (coords) {
+            renderAt(coords.lat, coords.lng);
+            return;
+          }
+        }
+
         const geoRes = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
         if (!geoRes.ok) {
           if (!cancelled) setPlaceMapError("주소 좌표를 찾지 못했어요.");
@@ -724,17 +773,7 @@ function ArchivePageInner() {
           if (!cancelled) setPlaceMapError("주소 좌표를 찾지 못했어요.");
           return;
         }
-
-        await loadNaverMapSdk();
-        const maps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
-        if (!maps) {
-          if (!cancelled) setPlaceMapError("네이버 지도를 불러오지 못했어요.");
-          return;
-        }
-        const point = new maps.LatLng(lat, lng);
-        const map = new maps.Map(mapEl, { center: point, zoom: 16 });
-        new maps.Marker({ map, position: point });
-        if (!cancelled) setPlaceMapError(null);
+        renderAt(lat, lng);
       } catch {
         if (!cancelled) setPlaceMapError("지도를 표시하는 중 오류가 발생했어요.");
       }
