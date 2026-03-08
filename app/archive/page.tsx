@@ -1137,7 +1137,7 @@ function ArchivePageInner() {
           </div>
         </section>
 
-        {isMobileViewport && isAddModalOpen ? (
+        {isMobileViewport && isAddModalOpen && !editingId ? (
           <section className="mt-1 rounded-lg border border-[#eeeeee] bg-white/80 p-4">
             {renderAddEditorPanel()}
           </section>
@@ -2302,7 +2302,7 @@ function ArchivePageInner() {
           </div>
         ) : null}
 
-        {!isMobileViewport && isAddModalOpen ? (
+        {(!isMobileViewport || Boolean(editingId)) && isAddModalOpen ? (
           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30 p-3">
             <div className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-lg border border-[#eeeeee] bg-white p-4 shadow-xl">
               {renderAddEditorPanel()}
