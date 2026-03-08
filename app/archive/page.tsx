@@ -12,21 +12,6 @@ type BookStatusFilter = "all" | "reading" | "paused" | "done";
 type BookRunStatus = "reading" | "paused" | "done";
 type PlaceStatus = "wishlist" | "visited" | "pass";
 type WishStatus = "wishlist" | "planned" | "bought";
-type NaverMapsApi = {
-  LatLng: new (lat: number, lng: number) => unknown;
-  Map: new (el: HTMLElement, options: { center: unknown; zoom: number }) => unknown;
-  Marker: new (options: { map: unknown; position: unknown }) => unknown;
-  Service?: {
-    geocode: (
-      params: { query: string },
-      cb: (
-        status: string,
-        response: { v2?: { addresses?: Array<{ x?: string; y?: string }> } },
-      ) => void,
-    ) => void;
-    Status?: { OK?: string };
-  };
-};
 
 type ArchiveItem = {
   id: string;
@@ -212,54 +197,6 @@ function buildNaverMapSearchUrl(query: string) {
   return `https://map.naver.com/v5/search/${encoded}`;
 }
 
-function buildAddressQueries(raw: string, title: string) {
-  const base = raw.trim();
-  const normalized = base
-    .replace(/^부산시\s*/g, "부산광역시 ")
-    .replace(/([가-힣A-Za-z])(\d)/g, "$1 $2")
-    .replace(/\s+/g, " ")
-    .trim();
-  const variants = [base, normalized, title.trim()]
-    .map((v) => v.trim())
-    .filter(Boolean);
-  return Array.from(new Set(variants));
-}
-
-let naverSdkLoadPromise: Promise<void> | null = null;
-
-function ensureNaverMapSdk(clientId: string) {
-  if (typeof window === "undefined") return Promise.resolve();
-  const loadedMaps = (window as typeof window & { naver?: { maps?: unknown } }).naver?.maps;
-  if (loadedMaps) return Promise.resolve();
-  if (naverSdkLoadPromise) return naverSdkLoadPromise;
-
-  naverSdkLoadPromise = new Promise<void>((resolve, reject) => {
-    const mapSdkId = "naver-map-sdk";
-    const existing = document.getElementById(mapSdkId) as HTMLScriptElement | null;
-    const handleLoad = () => resolve();
-    const handleError = () => {
-      naverSdkLoadPromise = null;
-      reject(new Error("sdk-load-failed"));
-    };
-
-    if (existing) {
-      existing.addEventListener("load", handleLoad, { once: true });
-      existing.addEventListener("error", handleError, { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = mapSdkId;
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder`;
-    script.async = true;
-    script.addEventListener("load", handleLoad, { once: true });
-    script.addEventListener("error", handleError, { once: true });
-    document.head.appendChild(script);
-  });
-
-  return naverSdkLoadPromise;
-}
-
 function getStoredArchive() {
   if (typeof window === "undefined") return [];
   const parsed = parseJson<unknown[]>(window.localStorage.getItem(ARCHIVE_STORAGE_KEY), []);
@@ -410,8 +347,6 @@ function ArchivePageInner() {
   const [selectedWishStatus, setSelectedWishStatus] = useState<"all" | WishStatus>("all");
   const [selectedWishId, setSelectedWishId] = useState<string | null>(null);
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
-  const [placeMapError, setPlaceMapError] = useState<string | null>(null);
-  const naverMapClientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? "";
 
   useEffect(() => {
     localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(items));
@@ -729,96 +664,6 @@ function ArchivePageInner() {
     [filteredPlaces, selectedPlaceId],
   );
 
-  useEffect(() => {
-    if (typeFilter !== "place" || !selectedPlace) return;
-    const queries = buildAddressQueries(
-      (selectedPlace.placeAddress || "").trim(),
-      selectedPlace.title,
-    );
-    const query = queries[0] ?? "";
-    const mapEl = document.getElementById("naver-place-map");
-    if (!mapEl) return;
-    if (!query) {
-      setPlaceMapError("주소 정보가 없어 지도를 표시할 수 없어요.");
-      return;
-    }
-    if (!naverMapClientId) {
-      setPlaceMapError("네이버 지도 키가 없어 지도를 표시할 수 없어요.");
-      return;
-    }
-
-    setPlaceMapError(null);
-    let cancelled = false;
-
-    const render = async () => {
-      try {
-        try {
-          await ensureNaverMapSdk(naverMapClientId);
-        } catch {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-          await ensureNaverMapSdk(naverMapClientId);
-        }
-        const maps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
-        if (!maps) {
-          if (!cancelled) setPlaceMapError("네이버 지도를 불러오지 못했어요.");
-          return;
-        }
-        const serviceGeocode = maps.Service?.geocode;
-        const serviceStatusOk = maps.Service?.Status?.OK;
-
-        const renderAt = (lat: number, lng: number) => {
-          const point = new maps.LatLng(lat, lng);
-          const map = new maps.Map(mapEl, { center: point, zoom: 16 });
-          new maps.Marker({ map, position: point });
-          if (!cancelled) setPlaceMapError(null);
-        };
-
-        if (typeof serviceGeocode === "function") {
-          for (const q of queries) {
-            const coords = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
-              serviceGeocode({ query: q }, (status, response) => {
-                if (serviceStatusOk && status !== serviceStatusOk) {
-                  resolve(null);
-                  return;
-                }
-                const addr = response?.v2?.addresses?.[0];
-                const lat = Number(addr?.y);
-                const lng = Number(addr?.x);
-                if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-                  resolve(null);
-                  return;
-                }
-                resolve({ lat, lng });
-              });
-            });
-            if (coords) {
-              renderAt(coords.lat, coords.lng);
-              return;
-            }
-          }
-        }
-
-        for (const q of queries) {
-          const geoRes = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
-          if (!geoRes.ok) continue;
-          const geo = (await geoRes.json()) as { lat?: number | null; lng?: number | null };
-          const lat = Number(geo.lat);
-          const lng = Number(geo.lng);
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-          renderAt(lat, lng);
-          return;
-        }
-        if (!cancelled) setPlaceMapError("주소 좌표를 찾지 못했어요.");
-      } catch {
-        if (!cancelled) setPlaceMapError("지도 로딩에 실패했어요. 네이버 지도 열기로 확인해 주세요.");
-      }
-    };
-
-    void render();
-    return () => {
-      cancelled = true;
-    };
-  }, [typeFilter, selectedPlace, naverMapClientId]);
   const wishItems = useMemo(
     () =>
       items
@@ -1445,26 +1290,19 @@ function ArchivePageInner() {
                     </div>
                   </div>
                   <div className="relative mt-2 rounded-md border border-[#dddddd] bg-white p-2">
-                    {placeMapError ? (
-                      <div className="flex h-[170px] w-full items-center justify-center rounded-md border border-[#eeeeee] bg-white px-3 text-center text-xs text-[#666666]">
-                        {placeMapError}
-                      </div>
-                    ) : (
-                      <div
-                        id="naver-place-map"
-                        className="h-[170px] w-full rounded-md border border-[#eeeeee]"
-                      />
-                    )}
-                    <a
-                      href={buildNaverMapSearchUrl(
-                        (selectedPlace.placeAddress || "").trim() || selectedPlace.title,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="absolute right-3 top-3 rounded-md border border-[#dddddd] bg-white/95 px-2 py-1 text-[11px] text-[#444444] shadow-sm"
-                    >
-                      네이버 지도 열기
-                    </a>
+                    <div className="flex h-[170px] w-full flex-col items-center justify-center rounded-md border border-[#eeeeee] bg-white px-3 text-center">
+                      <p className="text-xs text-[#666666]">내장 지도는 비활성화되어 있어요.</p>
+                      <a
+                        href={buildNaverMapSearchUrl(
+                          (selectedPlace.placeAddress || "").trim() || selectedPlace.title,
+                        )}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[11px] text-[#444444] shadow-sm"
+                      >
+                        네이버 지도 열기
+                      </a>
+                    </div>
                   </div>
                   <div className="mt-2 min-h-0 flex-1 overflow-y-auto rounded-md border border-[#dddddd] bg-white p-2">
                     <div className="flex flex-wrap items-center gap-1">
