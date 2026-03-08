@@ -12,20 +12,6 @@ type BookStatusFilter = "all" | "reading" | "paused" | "done";
 type BookRunStatus = "reading" | "paused" | "done";
 type PlaceStatus = "wishlist" | "visited" | "pass";
 type WishStatus = "wishlist" | "planned" | "bought";
-type NaverMapsApi = {
-  LatLng: new (lat: number, lng: number) => unknown;
-  Map: new (el: HTMLElement, options: { center: unknown; zoom: number }) => {
-    setCenter: (point: unknown) => void;
-  };
-  Marker: new (options: { map: unknown; position: unknown }) => unknown;
-  Service?: {
-    geocode: (
-      params: { query: string },
-      cb: (status: string, response: { v2?: { addresses?: Array<{ y: string; x: string }> } }) => void,
-    ) => void;
-    Status?: { OK?: string };
-  };
-};
 
 type ArchiveItem = {
   id: string;
@@ -211,6 +197,10 @@ function buildNaverMapSearchUrl(query: string) {
   return `https://map.naver.com/v5/search/${encoded}`;
 }
 
+function buildGoogleMapEmbedUrl(query: string) {
+  return `https://www.google.com/maps?q=${encodeURIComponent(query.trim())}&z=16&output=embed`;
+}
+
 function getStoredArchive() {
   if (typeof window === "undefined") return [];
   const parsed = parseJson<unknown[]>(window.localStorage.getItem(ARCHIVE_STORAGE_KEY), []);
@@ -361,8 +351,6 @@ function ArchivePageInner() {
   const [selectedWishStatus, setSelectedWishStatus] = useState<"all" | WishStatus>("all");
   const [selectedWishId, setSelectedWishId] = useState<string | null>(null);
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
-
-  const naverMapClientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? "";
 
   useEffect(() => {
     localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(items));
@@ -712,111 +700,6 @@ function ArchivePageInner() {
     () => filteredWishes.find((item) => item.id === selectedWishId) ?? filteredWishes[0] ?? null,
     [filteredWishes, selectedWishId],
   );
-
-  useEffect(() => {
-    if (!naverMapClientId) return;
-    const mapSdkId = "naver-map-sdk";
-    let script = document.getElementById(mapSdkId) as HTMLScriptElement | null;
-    if (!script) {
-      script = document.createElement("script");
-      script.id = mapSdkId;
-      script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}&submodules=geocoder`;
-      script.async = true;
-      document.head.appendChild(script);
-    }
-  }, [naverMapClientId]);
-
-  useEffect(() => {
-    if (typeFilter !== "place") return;
-    if (!selectedPlace?.title) return;
-    const mapEl = document.getElementById("naver-place-map");
-    if (!mapEl) return;
-
-    const renderMap = () => {
-      try {
-        const maps = (window as typeof window & { naver?: { maps?: NaverMapsApi } }).naver?.maps;
-        if (!maps || typeof maps.LatLng !== "function" || typeof maps.Map !== "function") return;
-        const fallbackCenter = new maps.LatLng(37.5665, 126.978);
-        const map = new maps.Map(mapEl, {
-          center: fallbackCenter,
-          zoom: 14,
-        });
-
-        const geocode = maps.Service?.geocode;
-        if (typeof geocode !== "function") return;
-
-        const addressQuery = (selectedPlace.placeAddress || "").trim();
-        const titleQuery = selectedPlace.title.trim();
-        const queries = addressQuery ? [addressQuery] : titleQuery ? [titleQuery] : [];
-        if (queries.length === 0) return;
-
-        const fallbackWithOpenStreetMap = async () => {
-          for (const query of queries) {
-            try {
-              const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
-              if (!res.ok) continue;
-              const row = (await res.json()) as { lat?: number | null; lng?: number | null };
-              const lat = Number(row.lat);
-              const lng = Number(row.lng);
-              if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-              const point = new maps.LatLng(lat, lng);
-              map.setCenter(point);
-              if (typeof maps.Marker === "function") {
-                new maps.Marker({ map, position: point });
-              }
-              return;
-            } catch {
-              // ignore and try next query
-            }
-          }
-        };
-
-        const tryGeocode = (index: number) => {
-          if (index >= queries.length) {
-            void fallbackWithOpenStreetMap();
-            return;
-          }
-          geocode({ query: queries[index] }, (_status, response) => {
-            try {
-              const address = response?.v2?.addresses?.[0];
-              if (!address) {
-                tryGeocode(index + 1);
-                return;
-              }
-              const lat = Number(address.y);
-              const lng = Number(address.x);
-              if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-                tryGeocode(index + 1);
-                return;
-              }
-              const point = new maps.LatLng(lat, lng);
-              map.setCenter(point);
-              if (typeof maps.Marker === "function") {
-                new maps.Marker({ map, position: point });
-              }
-            } catch {
-              tryGeocode(index + 1);
-            }
-          });
-        };
-
-        tryGeocode(0);
-      } catch {
-        // swallow map render errors to prevent page crash
-      }
-    };
-
-    const mapsLoaded = (window as typeof window & { naver?: { maps?: unknown } }).naver?.maps;
-    if (mapsLoaded) {
-      renderMap();
-      return;
-    }
-
-    const script = document.getElementById("naver-map-sdk") as HTMLScriptElement | null;
-    if (!script) return;
-    script.addEventListener("load", renderMap);
-    return () => script.removeEventListener("load", renderMap);
-  }, [typeFilter, selectedPlace, naverMapClientId]);
 
   const bookItems = useMemo(() => items.filter((item) => item.type === "book"), [items]);
   const bookGenres = useMemo(() => {
@@ -1410,18 +1293,15 @@ function ArchivePageInner() {
                     </div>
                   </div>
                   <div className="relative mt-2 rounded-md border border-[#dddddd] bg-white p-2">
-                    {naverMapClientId ? (
-                      <div
-                        id="naver-place-map"
-                        className="h-[170px] w-full rounded-md border border-[#eeeeee]"
-                      />
-                    ) : (
-                      <div className="flex h-[170px] items-center justify-center rounded-md border border-[#eeeeee] bg-white text-center text-xs text-[#666666]">
-                        NEXT_PUBLIC_NAVER_MAP_CLIENT_ID 설정 후
-                        <br />
-                        네이버 지도를 바로 볼 수 있어요.
-                      </div>
-                    )}
+                    <iframe
+                      title={`${selectedPlace.title}-map`}
+                      src={buildGoogleMapEmbedUrl(
+                        (selectedPlace.placeAddress || "").trim() || selectedPlace.title,
+                      )}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      className="h-[170px] w-full rounded-md border border-[#eeeeee]"
+                    />
                     <a
                       href={buildNaverMapSearchUrl(
                         (selectedPlace.placeAddress || "").trim() || selectedPlace.title,

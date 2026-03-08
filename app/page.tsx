@@ -2288,8 +2288,8 @@ function HomePage() {
                 key={todo.id}
                 className="rounded-md border border-[#dddddd] bg-white px-2 py-1"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <label className="flex min-w-0 flex-1 items-center gap-2 text-xs">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                  <label className="flex min-w-0 items-center gap-2 text-xs">
                     <input
                       type="checkbox"
                       checked={todo.done}
@@ -2307,7 +2307,7 @@ function HomePage() {
                       {todo.text}
                     </span>
                   </label>
-                  <div className="ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap">
+                  <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
                     <button
                       type="button"
                       className="rounded-md border border-[#dddddd] bg-white px-1.5 py-0.5 text-[11px] font-medium text-[#444444]"
@@ -2904,11 +2904,7 @@ function HomePage() {
                           onChange={(e) => setTodoDueDateInput(e.target.value)}
                         />
                       ) : (
-                        <div className="rounded-md border border-[#eeeeee] bg-white px-3 py-1 text-xs text-[#777777]">
-                          {todoKindInput === "someday"
-                            ? "언젠가: 마감일 없음"
-                            : "날짜 선택 안 함"}
-                        </div>
+                        <div />
                       )}
                       <label className="flex items-center gap-2 rounded-md border border-[#dddddd] bg-white px-3 py-1 text-xs">
                         <input
