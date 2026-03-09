@@ -62,7 +62,8 @@ const COLLAGE_TEMPLATE: Array<{ c: number; r: number; cs: number; rs: number }> 
   { c: 8, r: 3, cs: 3, rs: 6 },
   { c: 11, r: 1, cs: 3, rs: 4 },
   { c: 14, r: 1, cs: 3, rs: 4 },
-  { c: 11, r: 5, cs: 6, rs: 4 },
+  { c: 11, r: 5, cs: 3, rs: 4 },
+  { c: 14, r: 5, cs: 3, rs: 4 },
 ];
 const MOBILE_COLLAGE_TEMPLATE: Array<{ c: number; r: number; cs: number; rs: number }> = [
   { c: 1, r: 1, cs: 3, rs: 4 },
@@ -74,6 +75,7 @@ const MOBILE_COLLAGE_TEMPLATE: Array<{ c: number; r: number; cs: number; rs: num
   { c: 1, r: 9, cs: 2, rs: 3 },
   { c: 3, r: 10, cs: 2, rs: 3 },
   { c: 5, r: 10, cs: 4, rs: 4 },
+  { c: 1, r: 13, cs: 4, rs: 2 },
 ];
 
 const wheelAreas: Array<{ key: WheelAreaKey; label: string; emoji: string }> = [
@@ -472,15 +474,18 @@ export default function VisionBoardPage() {
   function addPin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!pinImage.trim()) return;
-    const maxOrder = pins
+    const monthOrders = pins
       .filter((pin) => pin.month === month)
-      .reduce((acc, pin) => (typeof pin.order === "number" ? Math.max(acc, pin.order) : acc), -1);
+      .map((pin) => pin.order)
+      .filter((order): order is number => typeof order === "number");
+    const nextOrder =
+      monthOrders.length > 0 ? Math.min(...monthOrders) - 1 : 0;
     const next: CollagePin = {
       id: createId(),
       month,
       image: pinImage.trim(),
       createdAt: new Date().toISOString(),
-      order: maxOrder + 1,
+      order: nextOrder,
     };
     setPins((prev) => [next, ...prev]);
     setSelectedPinId(next.id);
@@ -544,9 +549,7 @@ export default function VisionBoardPage() {
         | ((data: { files?: File[] }) => boolean)
         | undefined;
       const file = new File([blob], filename, { type: "image/png" });
-      if (shareApi && canShareApi && canShareApi({ files: [file] })) {
-        await shareApi({ files: [file], title: "비전보드 배경화면" });
-      } else {
+      const downloadBlob = () => {
         const objectUrl = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = objectUrl;
@@ -555,9 +558,20 @@ export default function VisionBoardPage() {
         anchor.click();
         anchor.remove();
         URL.revokeObjectURL(objectUrl);
+      };
+      const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+      if (isMobileUa && shareApi && canShareApi && canShareApi({ files: [file] })) {
+        try {
+          await shareApi({ files: [file], title: "비전보드 배경화면" });
+        } catch (error) {
+          const isAbort = error instanceof DOMException && error.name === "AbortError";
+          if (!isAbort) downloadBlob();
+        }
+      } else {
+        downloadBlob();
       }
     } catch {
-      window.alert("배경화면 생성에 실패했어요. 이미지 URL 권한(CORS)을 확인해 주세요.");
+      window.alert("배경화면 생성에 실패했어요. 이미지 URL을 바꾸거나 잠시 뒤 다시 시도해 주세요.");
     } finally {
       setIsExportingWallpaper(false);
     }
