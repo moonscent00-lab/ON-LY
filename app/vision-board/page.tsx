@@ -168,6 +168,25 @@ function loadImage(src: string) {
   });
 }
 
+function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string) {
+  const fallbackDownload = (href: string) => {
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  };
+
+  try {
+    const dataUrl = canvas.toDataURL("image/png");
+    fallbackDownload(dataUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getStoredTheme() {
   if (typeof window === "undefined") return "neutral";
   const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -534,44 +553,53 @@ export default function VisionBoardPage() {
         }
       }
 
+      const filename = `vision-wallpaper-${month}.png`;
       const blob = await new Promise<Blob | null>((resolve) => {
         canvas.toBlob(resolve, "image/png");
       });
-      if (!blob) {
-        window.alert("이미지 저장에 실패했어요. 다른 이미지 URL로 다시 시도해 주세요.");
-        return;
-      }
-      const filename = `vision-wallpaper-${month}.png`;
-      const shareApi = navigator.share as
-        | ((data: { files?: File[]; title?: string; text?: string }) => Promise<void>)
-        | undefined;
-      const canShareApi = navigator.canShare as
-        | ((data: { files?: File[] }) => boolean)
-        | undefined;
-      const file = new File([blob], filename, { type: "image/png" });
-      const downloadBlob = () => {
-        const objectUrl = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = objectUrl;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(objectUrl);
-      };
-      const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-      if (isMobileUa && shareApi && canShareApi && canShareApi({ files: [file] })) {
-        try {
-          await shareApi({ files: [file], title: "비전보드 배경화면" });
-        } catch (error) {
-          const isAbort = error instanceof DOMException && error.name === "AbortError";
-          if (!isAbort) downloadBlob();
+
+      if (blob) {
+        const shareApi = navigator.share as
+          | ((data: { files?: File[]; title?: string; text?: string }) => Promise<void>)
+          | undefined;
+        const canShareApi = navigator.canShare as
+          | ((data: { files?: File[] }) => boolean)
+          | undefined;
+        const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+        const downloadBlob = () => {
+          const objectUrl = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+          anchor.href = objectUrl;
+          anchor.download = filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          URL.revokeObjectURL(objectUrl);
+        };
+
+        if (isMobileUa && shareApi && canShareApi && typeof File !== "undefined") {
+          try {
+            const file = new File([blob], filename, { type: "image/png" });
+            if (canShareApi({ files: [file] })) {
+              await shareApi({ files: [file], title: "비전보드 배경화면" });
+            } else {
+              downloadBlob();
+            }
+          } catch (error) {
+            const isAbort = error instanceof DOMException && error.name === "AbortError";
+            if (!isAbort) downloadBlob();
+          }
+        } else {
+          downloadBlob();
         }
       } else {
-        downloadBlob();
+        const ok = downloadCanvasPng(canvas, filename);
+        if (!ok) {
+          window.alert("배경화면 저장에 실패했어요. 다른 이미지 URL로 다시 시도해 주세요.");
+        }
       }
     } catch {
-      window.alert("배경화면 생성에 실패했어요. 이미지 URL을 바꾸거나 잠시 뒤 다시 시도해 주세요.");
+      window.alert("배경화면 저장 중 오류가 발생했어요. 새로고침 후 다시 시도해 주세요.");
     } finally {
       setIsExportingWallpaper(false);
     }
