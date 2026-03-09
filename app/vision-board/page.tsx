@@ -516,10 +516,15 @@ export default function VisionBoardPage() {
     if (monthlyPins.length === 0 || isExportingWallpaper) return;
     setIsExportingWallpaper(true);
     try {
-      const exportPins = monthlyPins.slice(0, 12);
+      const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+      const useDesktopLayoutExport = !isMobileUa;
+      const exportTemplate = COLLAGE_TEMPLATE;
+      const exportPins = useDesktopLayoutExport
+        ? monthlyPins.slice(0, exportTemplate.length)
+        : monthlyPins.slice(0, 12);
       const canvas = document.createElement("canvas");
-      const canvasWidth = 1080;
-      const canvasHeight = 1920;
+      const canvasWidth = useDesktopLayoutExport ? 1920 : 1080;
+      const canvasHeight = useDesktopLayoutExport ? 1080 : 1920;
       canvas.width = canvasWidth;
       canvas.height = canvasHeight;
       const ctx = canvas.getContext("2d");
@@ -528,28 +533,66 @@ export default function VisionBoardPage() {
       ctx.fillStyle = "#f4f5f7";
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-      const margin = 28;
-      const gap = 14;
-      const columns = 2;
-      const rows = Math.max(1, Math.ceil(exportPins.length / columns));
-      const tileWidth = (canvasWidth - margin * 2 - gap) / columns;
-      const tileHeight = (canvasHeight - margin * 2 - gap * (rows - 1)) / rows;
+      if (useDesktopLayoutExport) {
+        const margin = 36;
+        const gap = 10;
+        const cols = 16;
+        const rows = 8;
+        const cellWidth = (canvasWidth - margin * 2 - gap * (cols - 1)) / cols;
+        const cellHeight = (canvasHeight - margin * 2 - gap * (rows - 1)) / rows;
 
-      for (let index = 0; index < exportPins.length; index += 1) {
-        const pin = exportPins[index];
-        const row = Math.floor(index / columns);
-        const col = index % columns;
-        const x = margin + col * (tileWidth + gap);
-        const y = margin + row * (tileHeight + gap);
+        for (let index = 0; index < exportTemplate.length; index += 1) {
+          const slot = exportTemplate[index];
+          const pin = exportPins[index];
+          const x = margin + (slot.c - 1) * (cellWidth + gap);
+          const y = margin + (slot.r - 1) * (cellHeight + gap);
+          const width = slot.cs * cellWidth + (slot.cs - 1) * gap;
+          const height = slot.rs * cellHeight + (slot.rs - 1) * gap;
 
-        try {
-          const img = await loadImage(pin.image);
-          drawCoverImage(ctx, img, x, y, tileWidth, tileHeight);
-        } catch {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(x, y, tileWidth, tileHeight);
-          ctx.strokeStyle = "#dddddd";
-          ctx.strokeRect(x, y, tileWidth, tileHeight);
+          if (!pin) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(x, y, width, height);
+            ctx.strokeStyle = "#1abc9c";
+            ctx.setLineDash([8, 6]);
+            ctx.strokeRect(x, y, width, height);
+            ctx.setLineDash([]);
+            continue;
+          }
+
+          try {
+            const img = await loadImage(pin.image);
+            drawCoverImage(ctx, img, x, y, width, height);
+          } catch {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(x, y, width, height);
+            ctx.strokeStyle = "#dddddd";
+            ctx.strokeRect(x, y, width, height);
+          }
+        }
+      } else {
+        const margin = 28;
+        const gap = 14;
+        const columns = 2;
+        const rows = Math.max(1, Math.ceil(exportPins.length / columns));
+        const tileWidth = (canvasWidth - margin * 2 - gap) / columns;
+        const tileHeight = (canvasHeight - margin * 2 - gap * (rows - 1)) / rows;
+
+        for (let index = 0; index < exportPins.length; index += 1) {
+          const pin = exportPins[index];
+          const row = Math.floor(index / columns);
+          const col = index % columns;
+          const x = margin + col * (tileWidth + gap);
+          const y = margin + row * (tileHeight + gap);
+
+          try {
+            const img = await loadImage(pin.image);
+            drawCoverImage(ctx, img, x, y, tileWidth, tileHeight);
+          } catch {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(x, y, tileWidth, tileHeight);
+            ctx.strokeStyle = "#dddddd";
+            ctx.strokeRect(x, y, tileWidth, tileHeight);
+          }
         }
       }
 
@@ -565,7 +608,6 @@ export default function VisionBoardPage() {
         const canShareApi = navigator.canShare as
           | ((data: { files?: File[] }) => boolean)
           | undefined;
-        const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
         const downloadBlob = () => {
           const objectUrl = URL.createObjectURL(blob);
           const anchor = document.createElement("a");
