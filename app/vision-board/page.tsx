@@ -10,6 +10,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { useUiThemeSettings } from "@/lib/ui-theme";
 
 type MoodTheme = "neutral" | "coral" | "yellow" | "blue";
 type AccentTone = "neutral" | "coral" | "yellow" | "blue";
@@ -50,9 +51,6 @@ const COLLAGE_STORAGE_KEY = "diary-os.vision.collage.v1";
 const WHEEL_STORAGE_KEY = "diary-os.vision.wheel.v1";
 const WHEEL_LABELS_STORAGE_KEY = "diary-os.vision.wheel.labels.v1";
 const WHEEL_EMOJIS_STORAGE_KEY = "diary-os.vision.wheel.emojis.v1";
-const THEME_STORAGE_KEY = "diary-os.theme.v1";
-const ACCENT_STORAGE_KEY = "diary-os.accent.v1";
-const CALLOUT_BG_STORAGE_KEY = "diary-os.callout-bg.v1";
 const COLLAGE_TEMPLATE: Array<{ c: number; r: number; cs: number; rs: number }> = [
   { c: 1, r: 1, cs: 3, rs: 5 },
   { c: 1, r: 6, cs: 3, rs: 3 },
@@ -60,10 +58,10 @@ const COLLAGE_TEMPLATE: Array<{ c: number; r: number; cs: number; rs: number }> 
   { c: 4, r: 4, cs: 4, rs: 5 },
   { c: 8, r: 1, cs: 3, rs: 2 },
   { c: 8, r: 3, cs: 3, rs: 6 },
-  { c: 11, r: 1, cs: 3, rs: 4 },
-  { c: 14, r: 1, cs: 3, rs: 4 },
-  { c: 11, r: 5, cs: 3, rs: 4 },
-  { c: 14, r: 5, cs: 3, rs: 4 },
+  { c: 11, r: 1, cs: 3, rs: 3 },
+  { c: 14, r: 1, cs: 3, rs: 5 },
+  { c: 11, r: 4, cs: 3, rs: 5 },
+  { c: 14, r: 6, cs: 3, rs: 3 },
 ];
 const MOBILE_COLLAGE_TEMPLATE: Array<{ c: number; r: number; cs: number; rs: number }> = [
   { c: 1, r: 1, cs: 3, rs: 4 },
@@ -185,27 +183,6 @@ function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string) {
   } catch {
     return false;
   }
-}
-
-function getStoredTheme() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredAccent() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(ACCENT_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredCalloutBackground() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(CALLOUT_BG_STORAGE_KEY) ?? "";
 }
 
 function toMonthKey(date = new Date()) {
@@ -352,9 +329,7 @@ export default function VisionBoardPage() {
   );
   const initialSeed = getWheelSeed(initialWheelRecords, initialMonth);
 
-  const [theme] = useState<MoodTheme>(getStoredTheme);
-  const [accentTone] = useState<AccentTone>(getStoredAccent);
-  const [calloutBackground] = useState(getStoredCalloutBackground);
+  const { theme, accentTone, calloutBackground } = useUiThemeSettings();
 
   const [mode, setMode] = useState<VisionMode>("collage");
   const [month, setMonth] = useState(initialMonth);

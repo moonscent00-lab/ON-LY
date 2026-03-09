@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useUiThemeSettings } from "@/lib/ui-theme";
 
 type TodoKind = "date" | "someday" | "quick" | "project";
 type RoutineGroup = "morning" | "day" | "night";
@@ -111,9 +112,6 @@ const MOMENTUM_STORAGE_PREFIX = "diary-os.momentum";
 const SCHEDULE_STORAGE_KEY = "diary-os.schedule.v1";
 const PROJECT_STORAGE_KEY = "diary-os.projects.v1";
 const DAILY_STATS_STORAGE_KEY = "diary-os.daily-stats.v1";
-const THEME_STORAGE_KEY = "diary-os.theme.v1";
-const ACCENT_STORAGE_KEY = "diary-os.accent.v1";
-const CALLOUT_BG_STORAGE_KEY = "diary-os.callout-bg.v1";
 const REPORT_STORAGE_KEY = "diary-os.daily-reports.v1";
 const GOOGLE_CAL_TOKEN_STORAGE_KEY = "diary-os.google-calendar-token.v1";
 const GOOGLE_CAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -461,27 +459,6 @@ function getStoredReports() {
   );
 }
 
-function getStoredTheme() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredAccent() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(ACCENT_STORAGE_KEY);
-  return saved === "neutral" || saved === "blue" || saved === "coral" || saved === "yellow"
-    ? saved
-    : "neutral";
-}
-
-function getStoredCalloutBackground() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(CALLOUT_BG_STORAGE_KEY) ?? "";
-}
-
 function getStoredAppleIcsUrl() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(APPLE_ICS_URL_STORAGE_KEY) ?? "";
@@ -656,11 +633,14 @@ function HomePage() {
   const [activeTracking, setActiveTracking] = useState<TrackingSession | null>(null);
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
-  const [theme, setTheme] = useState<MoodTheme>(getStoredTheme);
-  const [accentTone, setAccentTone] = useState<AccentTone>(getStoredAccent);
-  const [calloutBackground, setCalloutBackground] = useState(
-    getStoredCalloutBackground,
-  );
+  const {
+    theme,
+    setTheme,
+    accentTone,
+    setAccentTone,
+    calloutBackground,
+    setCalloutBackground,
+  } = useUiThemeSettings();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSchedulePanelOpen, setIsSchedulePanelOpen] = useState(false);
   const [isRoutineInputOpen, setIsRoutineInputOpen] = useState(false);
@@ -724,18 +704,6 @@ function HomePage() {
   useEffect(() => {
     localStorage.setItem(momentumKey(today), String(momentum));
   }, [today, momentum]);
-
-  useEffect(() => {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem(ACCENT_STORAGE_KEY, accentTone);
-  }, [accentTone]);
-
-  useEffect(() => {
-    localStorage.setItem(CALLOUT_BG_STORAGE_KEY, calloutBackground);
-  }, [calloutBackground]);
 
   useEffect(() => {
     localStorage.setItem(APPLE_ICS_URLS_STORAGE_KEY, JSON.stringify(appleIcsUrls));

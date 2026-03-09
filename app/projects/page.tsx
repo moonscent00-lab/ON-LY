@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
+import { useUiThemeSettings } from "@/lib/ui-theme";
 
 type Project = {
   id: string;
@@ -34,9 +35,6 @@ type Todo = {
 
 const PROJECT_STORAGE_KEY = "diary-os.projects.v1";
 const TODO_STORAGE_KEY = "diary-os.todos.v2";
-const THEME_STORAGE_KEY = "diary-os.theme.v1";
-const ACCENT_STORAGE_KEY = "diary-os.accent.v1";
-const CALLOUT_BG_STORAGE_KEY = "diary-os.callout-bg.v1";
 
 type MoodTheme = "neutral" | "coral" | "yellow" | "blue";
 type AccentTone = "neutral" | "coral" | "yellow" | "blue";
@@ -70,27 +68,6 @@ const accentPalette: Record<AccentTone, { accent: string; soft: string }> = {
   yellow: { accent: "#e7c97a", soft: "#f8efcf" },
   blue: { accent: "#8fb6e8", soft: "#e7f0fd" },
 };
-
-function getStoredTheme() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredAccent() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(ACCENT_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredCalloutBackground() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(CALLOUT_BG_STORAGE_KEY) ?? "";
-}
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -187,9 +164,7 @@ function ProjectPage() {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [theme] = useState<MoodTheme>(getStoredTheme);
-  const [accentTone] = useState<AccentTone>(getStoredAccent);
-  const [calloutBackground] = useState(getStoredCalloutBackground);
+  const { theme, accentTone, calloutBackground } = useUiThemeSettings();
 
   useEffect(() => {
     localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(projects));

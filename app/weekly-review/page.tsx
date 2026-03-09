@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { useUiThemeSettings } from "@/lib/ui-theme";
 
 type OneThing = {
   title: string;
@@ -50,9 +51,6 @@ type AccentTone = "neutral" | "coral" | "yellow" | "blue";
 
 const REPORT_STORAGE_KEY = "diary-os.daily-reports.v1";
 const PERIOD_REFLECTION_STORAGE_KEY = "diary-os.period-reflections.v1";
-const THEME_STORAGE_KEY = "diary-os.theme.v1";
-const ACCENT_STORAGE_KEY = "diary-os.accent.v1";
-const CALLOUT_BG_STORAGE_KEY = "diary-os.callout-bg.v1";
 
 const themePalette: Record<
   MoodTheme,
@@ -107,27 +105,6 @@ function getStoredReports() {
 function getStoredReflections() {
   if (typeof window === "undefined") return [];
   return parseJson<PeriodReflection[]>(window.localStorage.getItem(PERIOD_REFLECTION_STORAGE_KEY), []);
-}
-
-function getStoredTheme() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredAccent() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(ACCENT_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredCalloutBackground() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(CALLOUT_BG_STORAGE_KEY) ?? "";
 }
 
 function todayKey() {
@@ -212,9 +189,7 @@ function WeeklyReviewPage() {
     Record<string, { good: string; problem: string; tryNext: string; summary: string; nextActions: string }>
   >({});
 
-  const [theme] = useState<MoodTheme>(getStoredTheme);
-  const [accentTone] = useState<AccentTone>(getStoredAccent);
-  const [calloutBackground] = useState(getStoredCalloutBackground);
+  const { theme, accentTone, calloutBackground } = useUiThemeSettings();
 
   useEffect(() => {
     localStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(reports));

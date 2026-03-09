@@ -3,14 +3,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { readUiThemeSettings, writeUiThemeSettings } from "@/lib/ui-theme";
 
 const ROUTINE_STORAGE_KEY = "diary-os.routines.v2";
 const ARCHIVE_STORAGE_KEY = "diary-os.archive.v1";
 const RESET_DONE_KEY = "diary-os.reset.keep-routine-book.v1";
-const THEME_STORAGE_KEY = "diary-os.theme.v1";
-const ACCENT_STORAGE_KEY = "diary-os.accent.v1";
-const CALLOUT_BG_STORAGE_KEY = "diary-os.callout-bg.v1";
-
 type MoodTheme = "neutral" | "coral" | "yellow" | "blue";
 type AccentTone = "neutral" | "coral" | "yellow" | "blue";
 
@@ -80,33 +77,16 @@ export default function TopNav() {
   }, []);
 
   function openSettings() {
-    if (typeof window === "undefined") {
-      setIsSettingsOpen(true);
-      return;
-    }
-    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    const savedAccent = window.localStorage.getItem(ACCENT_STORAGE_KEY);
-    const savedCallout = window.localStorage.getItem(CALLOUT_BG_STORAGE_KEY) ?? "";
-    setTheme(
-      savedTheme === "neutral" || savedTheme === "coral" || savedTheme === "yellow" || savedTheme === "blue"
-        ? savedTheme
-        : "neutral",
-    );
-    setAccentTone(
-      savedAccent === "neutral" || savedAccent === "coral" || savedAccent === "yellow" || savedAccent === "blue"
-        ? savedAccent
-        : "neutral",
-    );
-    setCalloutBackground(savedCallout);
+    const saved = readUiThemeSettings();
+    setTheme(saved.theme);
+    setAccentTone(saved.accentTone);
+    setCalloutBackground(saved.calloutBackground);
     setIsSettingsOpen(true);
   }
 
   function applySettings() {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-    window.localStorage.setItem(ACCENT_STORAGE_KEY, accentTone);
-    window.localStorage.setItem(CALLOUT_BG_STORAGE_KEY, calloutBackground);
-    window.location.reload();
+    writeUiThemeSettings({ theme, accentTone, calloutBackground });
+    setIsSettingsOpen(false);
   }
 
   const items = [

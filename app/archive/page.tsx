@@ -3,6 +3,7 @@
 
 import dynamic from "next/dynamic";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
+import { useUiThemeSettings } from "@/lib/ui-theme";
 
 type ArchiveType = "book" | "scrap" | "place" | "wish";
 type SortMode = "updated_desc" | "created_desc" | "favorite_first";
@@ -44,9 +45,6 @@ type ArchiveItem = {
 };
 
 const ARCHIVE_STORAGE_KEY = "diary-os.archive.v1";
-const THEME_STORAGE_KEY = "diary-os.theme.v1";
-const ACCENT_STORAGE_KEY = "diary-os.accent.v1";
-const CALLOUT_BG_STORAGE_KEY = "diary-os.callout-bg.v1";
 
 const themePalette: Record<MoodTheme, { background: string; vars: Record<string, string> }> = {
   neutral: {
@@ -108,27 +106,6 @@ function parseJson<T>(value: string | null, fallback: T): T {
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function getStoredTheme() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredAccent() {
-  if (typeof window === "undefined") return "neutral";
-  const saved = window.localStorage.getItem(ACCENT_STORAGE_KEY);
-  return saved === "neutral" || saved === "coral" || saved === "yellow" || saved === "blue"
-    ? saved
-    : "neutral";
-}
-
-function getStoredCalloutBackground() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(CALLOUT_BG_STORAGE_KEY) ?? "";
 }
 
 function toMonthKey(date = new Date()) {
@@ -298,9 +275,7 @@ function progressPercent(item: ArchiveItem) {
 }
 
 function ArchivePageInner() {
-  const [theme] = useState<MoodTheme>(getStoredTheme);
-  const [accentTone] = useState<AccentTone>(getStoredAccent);
-  const [calloutBackground] = useState(getStoredCalloutBackground);
+  const { theme, accentTone, calloutBackground } = useUiThemeSettings();
   const [items, setItems] = useState<ArchiveItem[]>(getStoredArchive);
 
   const [typeInput, setTypeInput] = useState<ArchiveType>("book");
