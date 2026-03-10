@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useUiThemeSettings } from "@/lib/ui-theme";
+import { useGoogleToken } from "@/lib/useGoogleToken";
 
 type TodoKind = "date" | "someday" | "quick" | "project";
 type RoutineGroup = "morning" | "day" | "night";
@@ -114,7 +115,6 @@ const PROJECT_STORAGE_KEY = "diary-os.projects.v1";
 const DAILY_STATS_STORAGE_KEY = "diary-os.daily-stats.v1";
 const REPORT_STORAGE_KEY = "diary-os.daily-reports.v1";
 const GOOGLE_CAL_TOKEN_STORAGE_KEY = "diary-os.google-calendar-token.v1";
-const GOOGLE_CAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const GOOGLE_CAL_LIST_STORAGE_KEY = "diary-os.google-calendars.v1";
 const GOOGLE_CAL_FILTER_STORAGE_KEY = "diary-os.google-calendar-filter.v1";
 const GOOGLE_CAL_AUTO_SYNC_STORAGE_KEY = "diary-os.google-calendar-autosync.v1";
@@ -661,11 +661,15 @@ function HomePage() {
   const [reportGoodInput, setReportGoodInput] = useState("");
   const [reportProblemInput, setReportProblemInput] = useState("");
   const [reportTryInput, setReportTryInput] = useState("");
-  const [googleAccessToken, setGoogleAccessToken] = useState("");
-  const [googleTokenExpiresAt, setGoogleTokenExpiresAt] = useState<number>(0);
-  const [googleCalendarReady, setGoogleCalendarReady] = useState(false);
-  const [googleSyncing, setGoogleSyncing] = useState(false);
+  const {
+    accessToken: googleAccessToken,
+    needsLogin: googleNeedsLogin,
+    loading: googleTokenLoading,
+    login: loginGoogle,
+    logout: logoutGoogle,
+  } = useGoogleToken();
   const [googleError, setGoogleError] = useState<string | null>(null);
+  const [googleSyncing, setGoogleSyncing] = useState(false);
   const [googleTodaySchedules, setGoogleTodaySchedules] = useState<ScheduleViewItem[]>([]);
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarMeta[]>([]);
   const [googleCalendarFilterIds, setGoogleCalendarFilterIds] = useState<string[]>(
@@ -718,40 +722,6 @@ function HomePage() {
     localStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(reports));
   }, [reports]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(max-width: 768px)");
-    const sync = () => setIsMobileViewport(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = window.localStorage.getItem(GOOGLE_CAL_TOKEN_STORAGE_KEY);
-    if (!raw) return;
-    const saved = parseJson<{ token: string; expiresAt: number } | null>(raw, null);
-    if (!saved || !saved.token || !saved.expiresAt) return;
-    if (saved.expiresAt <= Date.now()) {
-      window.localStorage.removeItem(GOOGLE_CAL_TOKEN_STORAGE_KEY);
-      return;
-    }
-    setGoogleAccessToken(saved.token);
-    setGoogleTokenExpiresAt(saved.expiresAt);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!googleAccessToken) {
-      window.localStorage.removeItem(GOOGLE_CAL_TOKEN_STORAGE_KEY);
-      return;
-    }
-    window.localStorage.setItem(
-      GOOGLE_CAL_TOKEN_STORAGE_KEY,
-      JSON.stringify({ token: googleAccessToken, expiresAt: googleTokenExpiresAt }),
-    );
-  }, [googleAccessToken, googleTokenExpiresAt]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -782,22 +752,6 @@ function HomePage() {
     );
   }, [googleAutoSyncEnabled]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const existing = document.getElementById("google-gsi-client");
-    if (existing) {
-      setGoogleCalendarReady(Boolean((window as { google?: unknown }).google));
-      return;
-    }
-    const script = document.createElement("script");
-    script.id = "google-gsi-client";
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () =>
-      setGoogleCalendarReady(Boolean((window as { google?: unknown }).google));
-    document.head.appendChild(script);
-  }, []);
 
   useEffect(() => {
     const hasOpenModal =
@@ -1528,7 +1482,6 @@ function HomePage() {
     rangeLabel?: string,
     selectedCalendarIds?: string[],
   ) {
-    setGoogleSyncing(true);
     setGoogleError(null);
     try {
       const targetCalendars =
@@ -1639,71 +1592,17 @@ function HomePage() {
       setGoogleSyncing(false);
     }
   }
+function connectGoogleCalendar() {
+  loginGoogle();
+}
 
-  function requestGoogleAccessToken(prompt: "" | "consent") {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      setGoogleError("환경변수 NEXT_PUBLIC_GOOGLE_CLIENT_ID가 필요해요.");
-      return;
-    }
-    const googleObj = (window as {
-      google?: {
-        accounts?: {
-          oauth2?: {
-            initTokenClient: (config: {
-              client_id: string;
-              scope: string;
-              callback: (resp: { access_token?: string; expires_in?: number; error?: string }) => void;
-            }) => { requestAccessToken: (opts?: { prompt?: string }) => void };
-          };
-        };
-      };
-    }).google;
-    if (!googleObj?.accounts?.oauth2?.initTokenClient) {
-      setGoogleError("Google 인증 모듈이 아직 로드되지 않았어요. 잠시 후 다시 눌러주세요.");
-      return;
-    }
-    const tokenClient = googleObj.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: GOOGLE_CAL_SCOPE,
-      callback: (resp) => {
-        if (resp.error || !resp.access_token) {
-          setGoogleError("Google 계정 연결에 실패했어요.");
-          return;
-        }
-        const accessToken = resp.access_token;
-        const expiresAt = Date.now() + (resp.expires_in ?? 3600) * 1000;
-        setGoogleAccessToken(accessToken);
-        setGoogleTokenExpiresAt(expiresAt);
-        void (async () => {
-          const calendars = await fetchGoogleCalendarList(accessToken);
-          const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
-          await syncGoogleTodayEvents(
-            accessToken,
-            calendars,
-            range.start,
-            range.end,
-            range.label,
-            googleCalendarFilterIds,
-          );
-        })();
-      },
-    });
-    tokenClient.requestAccessToken({ prompt });
-  }
-
-  async function connectGoogleCalendar() {
-    requestGoogleAccessToken(googleAccessToken ? "" : "consent");
-  }
-
-  function disconnectGoogleCalendar() {
-    setGoogleAccessToken("");
-    setGoogleTokenExpiresAt(0);
-    setGoogleTodaySchedules([]);
-    setGoogleCalendars([]);
-    setGoogleError(null);
-    setGoogleSyncInfo(null);
-  }
+function disconnectGoogleCalendar() {
+  void logoutGoogle();
+  setGoogleTodaySchedules([]);
+  setGoogleCalendars([]);
+  setGoogleError(null);
+  setGoogleSyncInfo(null);
+}
 
   function toggleGoogleCalendarFilter(calendarId: string) {
     setGoogleCalendarFilterIds((prev) =>
@@ -1899,50 +1798,6 @@ function HomePage() {
   }
 
   useEffect(() => {
-    if (!googleAccessToken) return;
-    if (googleTokenExpiresAt && googleTokenExpiresAt <= Date.now()) {
-      setGoogleAccessToken("");
-      setGoogleTokenExpiresAt(0);
-      return;
-    }
-    const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
-    void syncGoogleTodayEvents(
-      googleAccessToken,
-      undefined,
-      range.start,
-      range.end,
-      range.label,
-      googleCalendarFilterIds,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today, googleAccessToken, scheduleDateInput, scheduleViewMode, googleCalendarFilterIds]);
-
-  useEffect(() => {
-    if (!googleCalendarReady) return;
-    if (googleAccessToken) return;
-    if (!googleAutoSyncEnabled && !isSchedulePanelOpen) return;
-    requestGoogleAccessToken("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleCalendarReady, googleAccessToken, googleAutoSyncEnabled, isSchedulePanelOpen]);
-
-  useEffect(() => {
-    if (!googleAccessToken) return;
-    if (hasAutoSyncedOnEntryRef.current) return;
-    if (googleTokenExpiresAt && googleTokenExpiresAt <= Date.now()) return;
-    hasAutoSyncedOnEntryRef.current = true;
-    const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
-    void syncGoogleTodayEvents(
-      googleAccessToken,
-      undefined,
-      range.start,
-      range.end,
-      range.label,
-      googleCalendarFilterIds,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleAccessToken, googleTokenExpiresAt]);
-
-  useEffect(() => {
     if (!isSchedulePanelOpen) {
       wasSchedulePanelOpenRef.current = false;
       return;
@@ -1953,7 +1808,6 @@ function HomePage() {
     setScheduleTimeInput(now);
     setScheduleEndTimeInput(addMinutesToHHmm(now, 60));
     if (!googleAccessToken) return;
-    if (googleTokenExpiresAt && googleTokenExpiresAt <= Date.now()) return;
     const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
     void syncGoogleTodayEvents(
       googleAccessToken,
@@ -1964,7 +1818,7 @@ function HomePage() {
       googleCalendarFilterIds,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSchedulePanelOpen, googleAccessToken, googleTokenExpiresAt, scheduleDateInput, scheduleViewMode, googleCalendarFilterIds]);
+}, [isSchedulePanelOpen, googleAccessToken, scheduleDateInput, scheduleViewMode, googleCalendarFilterIds]);
 
   async function startTimeTracking() {
     if (activeTracking) return;
@@ -2583,7 +2437,7 @@ function HomePage() {
               type="button"
               className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
               onClick={connectGoogleCalendar}
-              disabled={!googleCalendarReady}
+              disabled={googleTokenLoading}
             >
               Google 연결
             </button>
