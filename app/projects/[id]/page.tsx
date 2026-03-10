@@ -373,24 +373,52 @@ function ProjectDetailPage() {
   }, [projectSteps]);
 
   const displayProjectSteps = useMemo(() => {
+    const quarterRegex = /^\[q(\d+)\]/i;
+    const monthRegex = /^\[m(\d+)\]/i;
     const weekRegex = /^\[w(\d+)\]/i;
     const dayRegex = /^\[d(\d+)\]/i;
+    const getQuarterNumber = (title: string) => Number(title.match(quarterRegex)?.[1] ?? 0);
+    const getMonthNumber = (title: string) => Number(title.match(monthRegex)?.[1] ?? 0);
     const getWeekNumber = (title: string) => Number(title.match(weekRegex)?.[1] ?? 0);
     const getDayNumber = (title: string) => Number(title.match(dayRegex)?.[1] ?? 0);
+
+    const quarterSteps = projectSteps
+      .filter((step) => quarterRegex.test(step.title))
+      .sort((a, b) => getQuarterNumber(a.title) - getQuarterNumber(b.title));
+
+    const monthSteps = projectSteps
+      .filter((step) => monthRegex.test(step.title))
+      .sort((a, b) => getMonthNumber(a.title) - getMonthNumber(b.title));
 
     const weekSteps = projectSteps
       .filter((step) => weekRegex.test(step.title))
       .sort((a, b) => getWeekNumber(a.title) - getWeekNumber(b.title));
 
-    if (weekSteps.length === 0) return projectSteps;
+    if (quarterSteps.length === 0 && monthSteps.length === 0 && weekSteps.length === 0) {
+      return projectSteps;
+    }
 
     const daySteps = projectSteps
       .filter((step) => dayRegex.test(step.title))
       .sort((a, b) => getDayNumber(a.title) - getDayNumber(b.title));
 
     const others = projectSteps.filter(
-      (step) => !weekRegex.test(step.title) && !dayRegex.test(step.title),
+      (step) =>
+        !quarterRegex.test(step.title) &&
+        !monthRegex.test(step.title) &&
+        !weekRegex.test(step.title) &&
+        !dayRegex.test(step.title),
     );
+
+    const monthsByQuarter = new Map<number, ProjectStep[]>();
+    monthSteps.forEach((step) => {
+      const monthNum = getMonthNumber(step.title);
+      if (monthNum <= 0) return;
+      const quarterNum = Math.ceil(monthNum / 3);
+      const bucket = monthsByQuarter.get(quarterNum) ?? [];
+      bucket.push(step);
+      monthsByQuarter.set(quarterNum, bucket);
+    });
 
     const daysByWeek = new Map<number, ProjectStep[]>();
     daySteps.forEach((step) => {
@@ -404,6 +432,23 @@ function ProjectDetailPage() {
 
     const ordered: ProjectStep[] = [];
     const usedIds = new Set<string>();
+    quarterSteps.forEach((quarterStep) => {
+      ordered.push(quarterStep);
+      usedIds.add(quarterStep.id);
+      const quarterNum = getQuarterNumber(quarterStep.title);
+      const linkedMonths = monthsByQuarter.get(quarterNum) ?? [];
+      linkedMonths.forEach((monthStep) => {
+        ordered.push(monthStep);
+        usedIds.add(monthStep.id);
+      });
+    });
+
+    monthSteps.forEach((step) => {
+      if (usedIds.has(step.id)) return;
+      ordered.push(step);
+      usedIds.add(step.id);
+    });
+
     weekSteps.forEach((weekStep) => {
       ordered.push(weekStep);
       usedIds.add(weekStep.id);
