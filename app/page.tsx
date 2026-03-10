@@ -60,7 +60,7 @@ type ScheduleItem = {
 };
 
 type ScheduleViewItem = ScheduleItem & {
-  source: "local" | "google" | "apple";
+  source: "local" | "google";
   calendarName?: string;
   calendarColor?: string;
 };
@@ -71,7 +71,6 @@ type TrackingSession = {
   note: string;
 };
 type CalendarViewMode = "day" | "week" | "month";
-type ScheduleAddTarget = "local" | "google" | "both";
 
 type DailyStat = {
   date: string;
@@ -118,8 +117,6 @@ const GOOGLE_CAL_TOKEN_STORAGE_KEY = "diary-os.google-calendar-token.v1";
 const GOOGLE_CAL_LIST_STORAGE_KEY = "diary-os.google-calendars.v1";
 const GOOGLE_CAL_FILTER_STORAGE_KEY = "diary-os.google-calendar-filter.v1";
 const GOOGLE_CAL_AUTO_SYNC_STORAGE_KEY = "diary-os.google-calendar-autosync.v1";
-const APPLE_ICS_URL_STORAGE_KEY = "diary-os.apple-ics-url.v1";
-const APPLE_ICS_URLS_STORAGE_KEY = "diary-os.apple-ics-urls.v2";
 
 const defaultRoutines: Routine[] = [
   {
@@ -459,32 +456,6 @@ function getStoredReports() {
   );
 }
 
-function getStoredAppleIcsUrl() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(APPLE_ICS_URL_STORAGE_KEY) ?? "";
-}
-
-function getStoredAppleIcsUrls() {
-  if (typeof window === "undefined") return [] as string[];
-  const saved = parseJson<string[]>(
-    window.localStorage.getItem(APPLE_ICS_URLS_STORAGE_KEY),
-    [],
-  )
-    .map((url) => normalizeIcsUrl(url))
-    .filter((url) => /^https?:\/\//i.test(url));
-  if (saved.length > 0) return Array.from(new Set(saved));
-  const legacy = normalizeIcsUrl(getStoredAppleIcsUrl());
-  if (!legacy || !/^https?:\/\//i.test(legacy)) return [];
-  return [legacy];
-}
-
-function normalizeIcsUrl(raw: string) {
-  const value = raw.trim();
-  if (!value) return "";
-  if (/^webcal:\/\//i.test(value)) return value.replace(/^webcal:\/\//i, "https://");
-  return value;
-}
-
 function getStoredGoogleCalendarFilterIds() {
   if (typeof window === "undefined") return [] as string[];
   return parseJson<string[]>(
@@ -618,9 +589,6 @@ function HomePage() {
   const [scheduleLocationInput, setScheduleLocationInput] = useState("");
   const [scheduleNoteInput, setScheduleNoteInput] = useState("");
   const [scheduleViewMode, setScheduleViewMode] = useState<CalendarViewMode>("day");
-  const [scheduleAddTarget, setScheduleAddTarget] =
-    useState<ScheduleAddTarget>("both");
-  const [googleTargetCalendarId, setGoogleTargetCalendarId] = useState("primary");
   const [scheduleDeletingId, setScheduleDeletingId] = useState<string | null>(null);
   const [scheduleEditingId, setScheduleEditingId] = useState<string | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleViewItem | null>(null);
@@ -678,12 +646,6 @@ function HomePage() {
   const [googleAutoSyncEnabled, setGoogleAutoSyncEnabled] = useState<boolean>(
     getStoredGoogleCalendarAutoSync,
   );
-  const [appleIcsUrls, setAppleIcsUrls] = useState<string[]>(getStoredAppleIcsUrls);
-  const [appleIcsInput, setAppleIcsInput] = useState("");
-  const [appleSyncing, setAppleSyncing] = useState(false);
-  const [appleError, setAppleError] = useState<string | null>(null);
-  const [appleSyncInfo, setAppleSyncInfo] = useState<string | null>(null);
-  const [appleSchedules, setAppleSchedules] = useState<ScheduleViewItem[]>([]);
   const [googleSyncInfo, setGoogleSyncInfo] = useState<string | null>(null);
   const hasAutoSyncedOnEntryRef = useRef(false);
   const wasSchedulePanelOpenRef = useRef(false);
@@ -708,15 +670,6 @@ function HomePage() {
   useEffect(() => {
     localStorage.setItem(momentumKey(today), String(momentum));
   }, [today, momentum]);
-
-  useEffect(() => {
-    localStorage.setItem(APPLE_ICS_URLS_STORAGE_KEY, JSON.stringify(appleIcsUrls));
-    if (appleIcsUrls.length > 0) {
-      localStorage.setItem(APPLE_ICS_URL_STORAGE_KEY, appleIcsUrls[0]);
-    } else {
-      localStorage.removeItem(APPLE_ICS_URL_STORAGE_KEY);
-    }
-  }, [appleIcsUrls]);
 
   useEffect(() => {
     localStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(reports));
@@ -811,10 +764,9 @@ function HomePage() {
       return [
         ...localVisible.map((item) => ({ ...item, source: "local" as const })),
         ...googleTodaySchedules.map((item) => ({ ...item, source: "google" as const })),
-        ...appleSchedules.map((item) => ({ ...item, source: "apple" as const })),
       ].sort((a, b) => a.time.localeCompare(b.time));
     },
-    [selectedDateSchedules, googleTodaySchedules, appleSchedules],
+    [selectedDateSchedules, googleTodaySchedules],
   );
 
   const oneThingTodos = useMemo(
@@ -1062,248 +1014,6 @@ function HomePage() {
     cancelRoutineEdit();
   }
 
-  function parseIcsDateTime(raw: string) {
-    const value = raw.trim();
-    if (/^\d{8}$/.test(value)) {
-      const y = Number(value.slice(0, 4));
-      const m = Number(value.slice(4, 6));
-      const d = Number(value.slice(6, 8));
-      return new Date(y, m - 1, d, 9, 0, 0);
-    }
-    if (/^\d{8}T\d{6}Z$/.test(value)) {
-      const y = Number(value.slice(0, 4));
-      const m = Number(value.slice(4, 6));
-      const d = Number(value.slice(6, 8));
-      const h = Number(value.slice(9, 11));
-      const min = Number(value.slice(11, 13));
-      const s = Number(value.slice(13, 15));
-      return new Date(Date.UTC(y, m - 1, d, h, min, s));
-    }
-    if (/^\d{8}T\d{6}$/.test(value)) {
-      const y = Number(value.slice(0, 4));
-      const m = Number(value.slice(4, 6));
-      const d = Number(value.slice(6, 8));
-      const h = Number(value.slice(9, 11));
-      const min = Number(value.slice(11, 13));
-      const s = Number(value.slice(13, 15));
-      return new Date(y, m - 1, d, h, min, s);
-    }
-    return null;
-  }
-
-  function parseIcsEvents(icsText: string) {
-    const unfolded = icsText.replace(/\r?\n[ \t]/g, "");
-    const lines = unfolded.split(/\r?\n/);
-    const events: Array<{ id: string; title: string; start: Date; allDay: boolean }> = [];
-    let inEvent = false;
-    let uid = "";
-    let summary = "";
-    let dtStart = "";
-    let dtStartAllDay = false;
-
-    for (const line of lines) {
-      if (line === "BEGIN:VEVENT") {
-        inEvent = true;
-        uid = "";
-        summary = "";
-        dtStart = "";
-        dtStartAllDay = false;
-        continue;
-      }
-      if (line === "END:VEVENT") {
-        if (inEvent && dtStart) {
-          const parsed = parseIcsDateTime(dtStart);
-          if (parsed) {
-            events.push({
-              id: uid || createId(),
-              title: summary || "(제목 없음)",
-              start: parsed,
-              allDay: dtStartAllDay,
-            });
-          }
-        }
-        inEvent = false;
-        continue;
-      }
-      if (!inEvent) continue;
-      if (line.startsWith("UID:")) {
-        uid = line.slice(4).trim();
-      } else if (line.startsWith("SUMMARY:")) {
-        summary = line.slice(8).trim();
-      } else if (line.startsWith("DTSTART")) {
-        const [, raw = ""] = line.split(":");
-        dtStart = raw.trim();
-        dtStartAllDay = line.includes("VALUE=DATE");
-      }
-    }
-    return events;
-  }
-
-  function extractIcsCalendarName(icsText: string) {
-    const unfolded = icsText.replace(/\r?\n[ \t]/g, "");
-    const line = unfolded
-      .split(/\r?\n/)
-      .find((entry) => entry.startsWith("X-WR-CALNAME:"));
-    if (!line) return null;
-    return line.slice("X-WR-CALNAME:".length).trim() || null;
-  }
-
-  function getAppleCalendarFallbackName(url: string) {
-    try {
-      const parsed = new URL(url);
-      return parsed.hostname.replace(/^www\./, "");
-    } catch {
-      return "Apple";
-    }
-  }
-
-  function addAppleIcsUrl() {
-    const normalized = normalizeIcsUrl(appleIcsInput);
-    if (!normalized) {
-      setAppleError("Apple 캘린더 ICS URL을 입력해 주세요.");
-      return;
-    }
-    if (!/^https?:\/\//i.test(normalized)) {
-      setAppleError("ICS URL은 webcal:// 또는 http(s):// 형식이어야 해요.");
-      return;
-    }
-    setAppleIcsUrls((prev) => {
-      if (prev.includes(normalized)) return prev;
-      return [...prev, normalized];
-    });
-    setAppleIcsInput("");
-    setAppleError(null);
-  }
-
-  function removeAppleIcsUrl(targetUrl: string) {
-    setAppleIcsUrls((prev) => prev.filter((url) => url !== targetUrl));
-  }
-
-  async function fetchSingleAppleIcsEvents(url: string, startDate: string, endDate: string) {
-    const res = await fetch(`/api/ics?url=${encodeURIComponent(url)}`);
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new Error(`Apple 캘린더 동기화 실패(${res.status}): ${detail.slice(0, 120)}`);
-    }
-    const data = (await res.json()) as { text?: string };
-    const icsText = data.text ?? "";
-    const calendarName = extractIcsCalendarName(icsText) ?? getAppleCalendarFallbackName(url);
-    const sourceKey = Math.abs(
-      Array.from(url).reduce((acc, char) => acc * 31 + char.charCodeAt(0), 7),
-    )
-      .toString(36)
-      .slice(0, 8);
-    return parseIcsEvents(icsText)
-      .filter((event) => {
-        const dateKey = event.start.toISOString().slice(0, 10);
-        return dateKey >= startDate && dateKey <= endDate;
-      })
-      .map((event) => {
-        const date = event.start.toISOString().slice(0, 10);
-        return {
-          id: `apple-${sourceKey}-${event.id}`,
-          title: event.title,
-          date,
-          time: event.allDay ? "종일" : toTimeLabel(event.start.toISOString()),
-          source: "apple" as const,
-          calendarName,
-          calendarColor: "#a3a3a3",
-        } satisfies ScheduleViewItem;
-      });
-  }
-
-  async function syncAppleIcsEvents(
-    startDate: string,
-    endDate: string,
-    rangeLabel: string,
-    targetUrls?: string[],
-  ) {
-    const urls =
-      (targetUrls ?? appleIcsUrls)
-        .map((url) => normalizeIcsUrl(url))
-        .filter((url) => /^https?:\/\//i.test(url)) ?? [];
-    if (urls.length === 0) {
-      setAppleError("Apple 캘린더 ICS URL을 먼저 추가해 주세요.");
-      setAppleSchedules([]);
-      setAppleSyncInfo(null);
-      return;
-    }
-    setAppleSyncing(true);
-    setAppleError(null);
-    try {
-      const settled = await Promise.allSettled(
-        urls.map((url) => fetchSingleAppleIcsEvents(url, startDate, endDate)),
-      );
-      const successItems: ScheduleViewItem[] = settled.flatMap((entry) =>
-        entry.status === "fulfilled" ? entry.value : [],
-      );
-      const failedItems = settled.filter((entry) => entry.status === "rejected");
-
-      const sortedItems = successItems.sort((a, b) =>
-        `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`),
-      );
-      setAppleSchedules(sortedItems);
-      setAppleSyncInfo(
-        `Apple ${urls.length}개 캘린더 · ${rangeLabel}(${startDate}~${endDate}) 일정 ${sortedItems.length}개`,
-      );
-      if (failedItems.length > 0) {
-        const firstError = failedItems[0].reason;
-        const firstMessage =
-          firstError instanceof Error ? firstError.message : "일부 캘린더 동기화에 실패했어요.";
-        setAppleError(
-          `Apple ${failedItems.length}개 캘린더 동기화 실패: ${firstMessage}`,
-        );
-      }
-    } catch (error) {
-      setAppleSchedules([]);
-      setAppleSyncInfo(null);
-      setAppleError(error instanceof Error ? error.message : "Apple 캘린더 동기화에 실패했어요.");
-    } finally {
-      setAppleSyncing(false);
-    }
-  }
-
-  async function createGoogleEvent(
-    token: string,
-    calendarId: string,
-    title: string,
-    date: string,
-    startTime: string,
-    endTime: string,
-    location?: string,
-    note?: string,
-  ) {
-    const [hour, minute] = startTime.split(":");
-    const [endHour, endMinute] = endTime.split(":");
-    const startAt = new Date(`${date}T${hour}:${minute}:00`);
-    const endAt = new Date(`${date}T${endHour}:${endMinute}:00`);
-    const safeEndAt = endAt > startAt ? endAt : new Date(startAt.getTime() + 60 * 60 * 1000);
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          summary: title,
-          location: location?.trim() || undefined,
-          description: note?.trim() || undefined,
-          start: { dateTime: startAt.toISOString(), timeZone },
-          end: { dateTime: safeEndAt.toISOString(), timeZone },
-        }),
-      },
-    );
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new Error(`Google 일정 추가 실패(${res.status}): ${detail.slice(0, 100)}`);
-    }
-    const created = (await res.json()) as { id?: string };
-    return { eventId: created.id ?? "", calendarId };
-  }
-
   async function deleteGoogleEvent(token: string, calendarId: string, eventId: string) {
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
@@ -1370,53 +1080,18 @@ function HomePage() {
   }) {
     const value = payload.title.trim();
     if (!value) return;
-    let createdGoogle: { eventId: string; calendarId: string } | null = null;
-    if (scheduleAddTarget === "google" || scheduleAddTarget === "both") {
-      if (!googleAccessToken) {
-        setGoogleError("Google에 저장하려면 먼저 Google 연결이 필요해요.");
-      } else {
-        try {
-          createdGoogle = await createGoogleEvent(
-            googleAccessToken,
-            googleTargetCalendarId || "primary",
-            value,
-            payload.date,
-            payload.startTime,
-            payload.endTime,
-            payload.location,
-            payload.note,
-          );
-          await syncGoogleTodayEvents(
-            googleAccessToken,
-            undefined,
-            currentRange.start,
-            currentRange.end,
-            currentRange.label,
-            googleCalendarFilterIds,
-          );
-        } catch (error) {
-          setGoogleError(
-            error instanceof Error ? error.message : "Google 일정 추가에 실패했어요.",
-          );
-        }
-      }
-    }
-    if (scheduleAddTarget === "local" || scheduleAddTarget === "both") {
-      setScheduleItems((prev) => [
-        ...prev,
-        {
-          id: createId(),
-          title: value,
-          date: payload.date,
-          time: payload.startTime,
-          endTime: payload.endTime,
-          location: payload.location.trim(),
-          note: payload.note.trim(),
-          googleCalendarId: createdGoogle?.calendarId || undefined,
-          googleEventId: createdGoogle?.eventId || undefined,
-        },
-      ]);
-    }
+    setScheduleItems((prev) => [
+      ...prev,
+      {
+        id: createId(),
+        title: value,
+        date: payload.date,
+        time: payload.startTime,
+        endTime: payload.endTime,
+        location: payload.location.trim(),
+        note: payload.note.trim(),
+      },
+    ]);
   }
 
   async function addSchedule(e: FormEvent<HTMLFormElement>) {
@@ -1460,10 +1135,6 @@ function HomePage() {
           summary: item.summary!,
           backgroundColor: item.backgroundColor,
         })) ?? [];
-    if (calendars.length > 0 && !calendars.find((item) => item.id === googleTargetCalendarId)) {
-      const primary = calendars.find((item) => item.id === "primary");
-      setGoogleTargetCalendarId((primary ?? calendars[0]).id);
-    }
     setGoogleCalendarFilterIds((prev) => {
       if (calendars.length === 0) return [];
       if (prev.length === 0) return calendars.map((item) => item.id);
@@ -1624,26 +1295,7 @@ function disconnectGoogleCalendar() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
-  function openPhoneCalendarApp() {
-    const ua = navigator.userAgent || "";
-    if (/iPhone|iPad|iPod/i.test(ua)) {
-      const target = new Date(`${scheduleDateInput}T00:00:00`);
-      const appleEpoch = new Date("2001-01-01T00:00:00Z");
-      const days = Math.floor((target.getTime() - appleEpoch.getTime()) / 86400000);
-      window.location.href = `calshow:${days}`;
-      return;
-    }
-    if (/Android/i.test(ua)) {
-      // Best effort deep-link for Android calendar apps; fallback to web calendar.
-      window.location.href = "content://com.android.calendar/time/";
-      window.setTimeout(() => openGoogleCalendarWeb(), 250);
-      return;
-    }
-    openGoogleCalendarWeb();
-  }
-
   async function handleDeleteSchedule(item: ScheduleViewItem) {
-    if (item.source === "apple") return;
     setScheduleDeletingId(item.id);
     try {
       if (item.source === "google") {
@@ -1697,7 +1349,6 @@ function disconnectGoogleCalendar() {
   }
 
   function openScheduleEdit(item: ScheduleViewItem) {
-    if (item.source === "apple") return;
     setEditingSchedule(item);
     setScheduleEditTitleInput(item.title);
     setScheduleEditDateInput(item.date);
@@ -1863,17 +1514,6 @@ function disconnectGoogleCalendar() {
       setScheduleSubmitting(false);
     }
   }
-
-  useEffect(() => {
-    if (appleIcsUrls.length === 0) {
-      setAppleSchedules([]);
-      setAppleSyncInfo(null);
-      return;
-    }
-    const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
-    void syncAppleIcsEvents(range.start, range.end, range.label);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today, appleIcsUrls, scheduleDateInput, scheduleViewMode]);
 
   useEffect(() => {
     if (!googleAccessToken || !googleAutoSyncEnabled) return;
@@ -2382,7 +2022,7 @@ function disconnectGoogleCalendar() {
     return (
       <>
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-[#444444]">🗓️ 일정 입력/연동</h3>
+          <h3 className="text-base font-semibold text-[#444444]">🗓️ 일정 입력</h3>
           <button
             type="button"
             className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
@@ -2492,65 +2132,6 @@ function disconnectGoogleCalendar() {
             </div>
           </div>
         ) : null}
-        <div className="mt-2 rounded-md border border-[#dddddd] bg-white p-2">
-          <p className="text-xs font-medium text-[#444444]">Apple 캘린더(ICS 공유 링크)</p>
-          <div className="mt-1 grid grid-cols-1 gap-1 sm:grid-cols-[1fr_auto]">
-            <input
-              value={appleIcsInput}
-              onChange={(e) => setAppleIcsInput(e.target.value)}
-              placeholder="https://... .ics"
-              className="min-w-0 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs outline-none focus:border-accent"
-            />
-            <button
-              type="button"
-              className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444] sm:whitespace-nowrap"
-              onClick={addAppleIcsUrl}
-            >
-              링크 추가
-            </button>
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="text-[11px] text-[#444444]">등록된 링크 {appleIcsUrls.length}개</p>
-            <button
-              type="button"
-              className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[11px] text-[#444444]"
-              disabled={appleSyncing || appleIcsUrls.length === 0}
-              onClick={() => {
-                const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
-                void syncAppleIcsEvents(range.start, range.end, range.label);
-              }}
-            >
-              {appleSyncing ? "동기화중..." : "전체 동기화"}
-            </button>
-          </div>
-          {appleIcsUrls.length > 0 ? (
-            <ul className="mt-1 max-h-28 space-y-1 overflow-y-auto pr-1">
-              {appleIcsUrls.map((url) => (
-                <li
-                  key={url}
-                  className="flex items-center justify-between gap-2 rounded-md border border-[#dddddd] bg-white px-2 py-1"
-                >
-                  <span className="truncate text-[11px] text-[#444444]" title={url}>
-                    {url}
-                  </span>
-                  <button
-                    type="button"
-                    className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[10px] text-[#444444]"
-                    onClick={() => removeAppleIcsUrl(url)}
-                  >
-                    삭제
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-1 text-[11px] text-[#777777]">
-              링크를 추가하면 Apple 일정이 한 번에 동기화됩니다.
-            </p>
-          )}
-          {appleError ? <p className="mt-1 text-xs text-rose-600">{appleError}</p> : null}
-          {appleSyncInfo ? <p className="mt-1 text-xs text-[#444444]">{appleSyncInfo}</p> : null}
-        </div>
         <form className="mt-3 space-y-2" onSubmit={addSchedule}>
           <input
             className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
@@ -2622,33 +2203,6 @@ function disconnectGoogleCalendar() {
                 타임트래커 시작
               </button>
             )}
-          </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <select
-              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-              value={scheduleAddTarget}
-              onChange={(e) => setScheduleAddTarget(e.target.value as ScheduleAddTarget)}
-            >
-              <option value="both">저장: 로컬 + Google</option>
-              <option value="local">저장: 로컬만</option>
-              <option value="google">저장: Google만</option>
-            </select>
-            <select
-              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-xs"
-              value={googleTargetCalendarId}
-              onChange={(e) => setGoogleTargetCalendarId(e.target.value)}
-              disabled={!googleAccessToken}
-            >
-              {googleCalendars.length === 0 ? (
-                <option value="primary">Google 캘린더 선택</option>
-              ) : (
-                googleCalendars.map((calendar) => (
-                  <option key={calendar.id} value={calendar.id}>
-                    {calendar.summary}
-                  </option>
-                ))
-              )}
-            </select>
           </div>
           <div className="flex justify-end">
             <button
@@ -2771,7 +2325,7 @@ function disconnectGoogleCalendar() {
   return (
     <div className="min-h-screen px-3 py-4 md:px-5 md:py-8" style={pageStyle}>
       <main
-        className="mx-auto min-h-[calc(100dvh-7.25rem)] max-w-6xl overflow-visible rounded-lg border border-line bg-surface/95 p-4 text-sm shadow-[0_18px_40px_rgba(20,19,17,0.08)] backdrop-blur-sm md:h-[calc(100dvh-7.25rem)] md:overflow-hidden md:p-5"
+        className="mx-auto min-h-[calc(100dvh-7.25rem)] max-w-6xl overflow-visible rounded-lg border border-line bg-surface/95 p-4 text-sm shadow-[0_18px_40px_rgba(20,19,17,0.08)] backdrop-blur-sm md:min-h-[calc(100dvh-7.25rem)] md:overflow-hidden md:p-5"
         style={
           calloutBackdropStyle ?? {
             backgroundImage:
@@ -2793,7 +2347,7 @@ function disconnectGoogleCalendar() {
         </section>
 
         <section className="mb-1 grid gap-[5px] lg:grid-cols-3 lg:items-stretch">
-          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[500px]">
+          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[560px]">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-base font-semibold">
                 <span className="mr-1 text-lg">🎯</span>오늘의 원씽 / 일정
@@ -2856,8 +2410,8 @@ function disconnectGoogleCalendar() {
                   type="button"
                   className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
                   onClick={() => setIsSchedulePanelOpen(true)}
-                  title="일정 입력/연동"
-                  aria-label="일정 입력/연동"
+                  title="일정 입력"
+                  aria-label="일정 입력"
                 >
                   ✍🏻
                 </button>
@@ -2869,15 +2423,6 @@ function disconnectGoogleCalendar() {
                   aria-label="Google 캘린더 열기"
                 >
                   💻
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border border-[#dddddd] bg-white px-2 py-1 text-xs text-[#444444]"
-                  onClick={openPhoneCalendarApp}
-                  title="핸드폰 캘린더 열기"
-                  aria-label="핸드폰 캘린더 열기"
-                >
-                  📱
                 </button>
               </div>
             </div>
@@ -2896,44 +2441,34 @@ function disconnectGoogleCalendar() {
                     {(scheduleViewMode === "day" ? "" : `${item.date} `) +
                       `${item.time} ${item.title}`}
                   </span>
-                  {item.source === "apple" ? (
-                    <span className="inline-flex items-center gap-1 rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[10px] text-[#444444]">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: item.calendarColor ?? "#9ca3af" }}
-                      />
-                      {item.calendarName ?? (item.source === "apple" ? "Apple" : "Google")}
-                    </span>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      {item.source === "google" ? (
-                        <span className="inline-flex items-center gap-1 rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[10px] text-[#444444]">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: item.calendarColor ?? "#9ca3af" }}
-                          />
-                          {item.calendarName ?? "Google"}
-                        </span>
-                      ) : null}
-                      <button
-                        className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] font-medium text-[#444444]"
-                        onClick={() => openScheduleEdit(item)}
-                        type="button"
-                        disabled={scheduleEditingId === item.id}
-                      >
-                        수정
-                      </button>
-                      <button
-                        className="rounded-md border border-transparent bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-[#444444]"
-                        style={softButtonStyle}
-                        onClick={() => void handleDeleteSchedule(item)}
-                        type="button"
-                        disabled={scheduleDeletingId === item.id}
-                      >
-                        {scheduleDeletingId === item.id ? "삭제중" : "삭제"}
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {item.source === "google" ? (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[10px] text-[#444444]">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: item.calendarColor ?? "#9ca3af" }}
+                        />
+                        {item.calendarName ?? "Google"}
+                      </span>
+                    ) : null}
+                    <button
+                      className="rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] font-medium text-[#444444]"
+                      onClick={() => openScheduleEdit(item)}
+                      type="button"
+                      disabled={scheduleEditingId === item.id}
+                    >
+                      수정
+                    </button>
+                    <button
+                      className="rounded-md border border-transparent bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-[#444444]"
+                      style={softButtonStyle}
+                      onClick={() => void handleDeleteSchedule(item)}
+                      type="button"
+                      disabled={scheduleDeletingId === item.id}
+                    >
+                      {scheduleDeletingId === item.id ? "삭제중" : "삭제"}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -2944,7 +2479,7 @@ function disconnectGoogleCalendar() {
             ) : null}
           </article>
 
-          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[500px]">
+          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[560px]">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-base font-semibold">
                 <span className="mr-1 text-lg">✅</span>투두 리스트
@@ -2986,7 +2521,7 @@ function disconnectGoogleCalendar() {
             ) : null}
           </article>
 
-          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[500px]">
+          <article className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[#eeeeee] bg-white/80 p-4 lg:h-[560px]">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-base font-semibold">
                 <span className="mr-1 text-lg">🔁</span>루틴 체크
