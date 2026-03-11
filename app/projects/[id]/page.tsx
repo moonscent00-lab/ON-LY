@@ -377,22 +377,20 @@ function ProjectDetailPage() {
     const monthRegex = /^\[m(\d+)\]/i;
     const weekRegex = /^\[w(\d+)\]/i;
     const dayRegex = /^\[d(\d+)\]/i;
-    const getQuarterNumber = (title: string) => Number(title.match(quarterRegex)?.[1] ?? 0);
-    const getMonthNumber = (title: string) => Number(title.match(monthRegex)?.[1] ?? 0);
-    const getWeekNumber = (title: string) => Number(title.match(weekRegex)?.[1] ?? 0);
-    const getDayNumber = (title: string) => Number(title.match(dayRegex)?.[1] ?? 0);
+    const byDate = (a: ProjectStep, b: ProjectStep) =>
+      `${a.targetDate}-${a.title}`.localeCompare(`${b.targetDate}-${b.title}`);
 
     const quarterSteps = projectSteps
       .filter((step) => quarterRegex.test(step.title))
-      .sort((a, b) => getQuarterNumber(a.title) - getQuarterNumber(b.title));
+      .sort(byDate);
 
     const monthSteps = projectSteps
       .filter((step) => monthRegex.test(step.title))
-      .sort((a, b) => getMonthNumber(a.title) - getMonthNumber(b.title));
+      .sort(byDate);
 
     const weekSteps = projectSteps
       .filter((step) => weekRegex.test(step.title))
-      .sort((a, b) => getWeekNumber(a.title) - getWeekNumber(b.title));
+      .sort(byDate);
 
     if (quarterSteps.length === 0 && monthSteps.length === 0 && weekSteps.length === 0) {
       return projectSteps;
@@ -400,7 +398,7 @@ function ProjectDetailPage() {
 
     const daySteps = projectSteps
       .filter((step) => dayRegex.test(step.title))
-      .sort((a, b) => getDayNumber(a.title) - getDayNumber(b.title));
+      .sort(byDate);
 
     const others = projectSteps.filter(
       (step) =>
@@ -410,55 +408,60 @@ function ProjectDetailPage() {
         !dayRegex.test(step.title),
     );
 
-    const monthsByQuarter = new Map<number, ProjectStep[]>();
-    monthSteps.forEach((step) => {
-      const monthNum = getMonthNumber(step.title);
-      if (monthNum <= 0) return;
-      const quarterNum = Math.ceil(monthNum / 3);
-      const bucket = monthsByQuarter.get(quarterNum) ?? [];
-      bucket.push(step);
-      monthsByQuarter.set(quarterNum, bucket);
-    });
-
-    const daysByWeek = new Map<number, ProjectStep[]>();
-    daySteps.forEach((step) => {
-      const dayNum = getDayNumber(step.title);
-      if (dayNum <= 0) return;
-      const weekNum = Math.ceil(dayNum / 7);
-      const bucket = daysByWeek.get(weekNum) ?? [];
-      bucket.push(step);
-      daysByWeek.set(weekNum, bucket);
-    });
-
     const ordered: ProjectStep[] = [];
     const usedIds = new Set<string>();
-    quarterSteps.forEach((quarterStep) => {
-      ordered.push(quarterStep);
-      usedIds.add(quarterStep.id);
-      const quarterNum = getQuarterNumber(quarterStep.title);
-      const linkedMonths = monthsByQuarter.get(quarterNum) ?? [];
-      linkedMonths.forEach((monthStep) => {
-        ordered.push(monthStep);
-        usedIds.add(monthStep.id);
-      });
-    });
+    let weekCursor = 0;
+    let dayCursor = 0;
+    let monthCursor = 0;
 
-    monthSteps.forEach((step) => {
-      if (usedIds.has(step.id)) return;
-      ordered.push(step);
-      usedIds.add(step.id);
-    });
-
-    weekSteps.forEach((weekStep) => {
-      ordered.push(weekStep);
-      usedIds.add(weekStep.id);
-      const weekNum = getWeekNumber(weekStep.title);
-      const linkedDays = daysByWeek.get(weekNum) ?? [];
-      linkedDays.forEach((dayStep) => {
+    const pushDayStepsUntil = (endDate: string, startDate?: string) => {
+      while (dayCursor < daySteps.length) {
+        const dayStep = daySteps[dayCursor];
+        if (startDate && dayStep.targetDate < startDate) break;
+        if (dayStep.targetDate > endDate) break;
         ordered.push(dayStep);
         usedIds.add(dayStep.id);
-      });
+        dayCursor += 1;
+      }
+    };
+
+    const pushWeekStepsUntil = (endDate: string, startDate?: string) => {
+      while (weekCursor < weekSteps.length) {
+        const weekStep = weekSteps[weekCursor];
+        if (startDate && weekStep.targetDate < startDate) break;
+        if (weekStep.targetDate > endDate) break;
+        ordered.push(weekStep);
+        usedIds.add(weekStep.id);
+        const weekStart = startOfWeek(weekStep.targetDate);
+        const weekEnd = endOfWeek(weekStep.targetDate);
+        weekCursor += 1;
+        pushDayStepsUntil(weekEnd, weekStart);
+      }
+    };
+
+    const pushMonthStepsUntil = (endDate: string, startDate?: string) => {
+      while (monthCursor < monthSteps.length) {
+        const monthStep = monthSteps[monthCursor];
+        if (startDate && monthStep.targetDate < startDate) break;
+        if (monthStep.targetDate > endDate) break;
+        ordered.push(monthStep);
+        usedIds.add(monthStep.id);
+        const monthStart = `${monthStep.targetDate.slice(0, 7)}-01`;
+        monthCursor += 1;
+        pushWeekStepsUntil(monthStep.targetDate, monthStart);
+      }
+    };
+
+    quarterSteps.forEach((quarterStep, index) => {
+      ordered.push(quarterStep);
+      usedIds.add(quarterStep.id);
+      const quarterStart =
+        index === 0 ? (project?.startDate ?? today) : quarterSteps[index - 1].targetDate;
+      pushMonthStepsUntil(quarterStep.targetDate, quarterStart);
     });
+
+    pushMonthStepsUntil("9999-12-31");
+    pushWeekStepsUntil("9999-12-31");
 
     daySteps.forEach((step) => {
       if (usedIds.has(step.id)) return;
