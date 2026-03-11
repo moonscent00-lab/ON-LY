@@ -1502,16 +1502,16 @@ function ArchivePageInner() {
                       </button>
                     </div>
                   </div>
-                  <div className="relative mt-2 rounded-md border border-[#dddddd] bg-white p-2">
-                    <div className="flex h-[170px] w-full flex-col items-center justify-center rounded-md border border-[#eeeeee] bg-white px-3 text-center">
-                      <p className="text-xs text-[#666666]">내장 지도는 비활성화되어 있어요.</p>
+                  <div className="relative mt-2 rounded-md border border-[#dddddd] bg-white p-1.5">
+                    <div className="flex h-[88px] w-full flex-col items-center justify-center rounded-md border border-[#eeeeee] bg-white px-2 text-center">
+                      <p className="text-[11px] text-[#666666]">내장 지도는 비활성화되어 있어요.</p>
                       <a
                         href={buildNaverMapSearchUrl(
                           (selectedPlace.placeAddress || "").trim() || selectedPlace.title,
                         )}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-2 rounded-md border border-[#dddddd] bg-white px-2 py-1 text-[11px] text-[#444444] shadow-sm"
+                        className="mt-1.5 rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[11px] text-[#444444] shadow-sm"
                       >
                         네이버 지도 열기
                       </a>
