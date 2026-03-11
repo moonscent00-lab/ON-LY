@@ -417,7 +417,10 @@ function ProjectDetailPage() {
     const pushDayStepsUntil = (endDate: string, startDate?: string) => {
       while (dayCursor < daySteps.length) {
         const dayStep = daySteps[dayCursor];
-        if (startDate && dayStep.targetDate < startDate) break;
+        if (startDate && dayStep.targetDate < startDate) {
+          dayCursor += 1;
+          continue;
+        }
         if (dayStep.targetDate > endDate) break;
         ordered.push(dayStep);
         usedIds.add(dayStep.id);
@@ -428,7 +431,10 @@ function ProjectDetailPage() {
     const pushWeekStepsUntil = (endDate: string, startDate?: string) => {
       while (weekCursor < weekSteps.length) {
         const weekStep = weekSteps[weekCursor];
-        if (startDate && weekStep.targetDate < startDate) break;
+        if (startDate && weekStep.targetDate < startDate) {
+          weekCursor += 1;
+          continue;
+        }
         if (weekStep.targetDate > endDate) break;
         ordered.push(weekStep);
         usedIds.add(weekStep.id);
@@ -442,7 +448,10 @@ function ProjectDetailPage() {
     const pushMonthStepsUntil = (endDate: string, startDate?: string) => {
       while (monthCursor < monthSteps.length) {
         const monthStep = monthSteps[monthCursor];
-        if (startDate && monthStep.targetDate < startDate) break;
+        if (startDate && monthStep.targetDate < startDate) {
+          monthCursor += 1;
+          continue;
+        }
         if (monthStep.targetDate > endDate) break;
         ordered.push(monthStep);
         usedIds.add(monthStep.id);
