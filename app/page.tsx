@@ -47,6 +47,14 @@ type Project = {
   status: "todo" | "doing" | "done";
 };
 
+type ScheduleCategory =
+  | "default"
+  | "focus"
+  | "meeting"
+  | "work"
+  | "personal"
+  | "health";
+
 type ScheduleItem = {
   id: string;
   title: string;
@@ -55,6 +63,7 @@ type ScheduleItem = {
   endTime?: string;
   location?: string;
   note?: string;
+  category?: ScheduleCategory;
   googleCalendarId?: string;
   googleEventId?: string;
 };
@@ -117,6 +126,24 @@ const GOOGLE_CAL_TOKEN_STORAGE_KEY = "diary-os.google-calendar-token.v1";
 const GOOGLE_CAL_LIST_STORAGE_KEY = "diary-os.google-calendars.v1";
 const GOOGLE_CAL_FILTER_STORAGE_KEY = "diary-os.google-calendar-filter.v1";
 const GOOGLE_CAL_AUTO_SYNC_STORAGE_KEY = "diary-os.google-calendar-autosync.v1";
+
+const SCHEDULE_CATEGORY_OPTIONS: Array<{
+  value: ScheduleCategory;
+  label: string;
+  googleColorId?: string;
+  accent: string;
+}> = [
+  { value: "default", label: "기본", accent: "#9ca3af" },
+  { value: "focus", label: "집중", googleColorId: "5", accent: "#f29b8f" },
+  { value: "meeting", label: "미팅", googleColorId: "11", accent: "#8fb6e8" },
+  { value: "work", label: "업무", googleColorId: "9", accent: "#e7c97a" },
+  { value: "personal", label: "개인", googleColorId: "6", accent: "#a78bfa" },
+  { value: "health", label: "건강", googleColorId: "2", accent: "#34d399" },
+];
+
+const GOOGLE_COLOR_TO_CATEGORY = new Map(
+  SCHEDULE_CATEGORY_OPTIONS.map((option) => [option.googleColorId, option.value] as const),
+);
 
 const defaultRoutines: Routine[] = [
   {
@@ -251,6 +278,23 @@ function toHHmm(value: Date) {
   return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
 }
 
+function getScheduleCategoryMeta(category: ScheduleCategory | undefined) {
+  return (
+    SCHEDULE_CATEGORY_OPTIONS.find((option) => option.value === category) ??
+    SCHEDULE_CATEGORY_OPTIONS[0]
+  );
+}
+
+function getCategoryFromGoogleEvent(
+  colorId?: string,
+  storedCategory?: string,
+): ScheduleCategory {
+  if (storedCategory && SCHEDULE_CATEGORY_OPTIONS.some((option) => option.value === storedCategory)) {
+    return storedCategory as ScheduleCategory;
+  }
+  return GOOGLE_COLOR_TO_CATEGORY.get(colorId) ?? "default";
+}
+
 
 function datePart(dateTime: string) {
   return dateTime.slice(0, 10);
@@ -372,6 +416,7 @@ function getStoredSchedule() {
         endTime?: unknown;
         location?: unknown;
         note?: unknown;
+        category?: unknown;
         googleCalendarId?: unknown;
         googleEventId?: unknown;
       };
@@ -390,6 +435,11 @@ function getStoredSchedule() {
         endTime: typeof old.endTime === "string" ? old.endTime : undefined,
         location: typeof old.location === "string" ? old.location : "",
         note: typeof old.note === "string" ? old.note : "",
+        category:
+          typeof old.category === "string" &&
+          SCHEDULE_CATEGORY_OPTIONS.some((option) => option.value === old.category)
+            ? (old.category as ScheduleCategory)
+            : "default",
         googleCalendarId:
           typeof old.googleCalendarId === "string" ? old.googleCalendarId : undefined,
         googleEventId:
@@ -588,7 +638,10 @@ function HomePage() {
   );
   const [scheduleLocationInput, setScheduleLocationInput] = useState("");
   const [scheduleNoteInput, setScheduleNoteInput] = useState("");
+  const [scheduleCategoryInput, setScheduleCategoryInput] =
+    useState<ScheduleCategory>("default");
   const [scheduleViewMode, setScheduleViewMode] = useState<CalendarViewMode>("day");
+  const [googleTargetCalendarId, setGoogleTargetCalendarId] = useState("primary");
   const [scheduleDeletingId, setScheduleDeletingId] = useState<string | null>(null);
   const [scheduleEditingId, setScheduleEditingId] = useState<string | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleViewItem | null>(null);
@@ -598,6 +651,8 @@ function HomePage() {
   const [scheduleEditEndTimeInput, setScheduleEditEndTimeInput] = useState("10:00");
   const [scheduleEditLocationInput, setScheduleEditLocationInput] = useState("");
   const [scheduleEditNoteInput, setScheduleEditNoteInput] = useState("");
+  const [scheduleEditCategoryInput, setScheduleEditCategoryInput] =
+    useState<ScheduleCategory>("default");
   const [activeTracking, setActiveTracking] = useState<TrackingSession | null>(null);
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
@@ -1030,14 +1085,14 @@ function HomePage() {
     }
   }
 
-  async function updateGoogleEvent(
+  async function createGoogleEvent(
     token: string,
     calendarId: string,
-    eventId: string,
     title: string,
     date: string,
     startTime: string,
     endTime: string,
+    category: ScheduleCategory,
     location?: string,
     note?: string,
   ) {
@@ -1047,6 +1102,57 @@ function HomePage() {
     const endAt = new Date(`${date}T${endHour}:${endMinute}:00`);
     const safeEndAt = endAt > startAt ? endAt : new Date(startAt.getTime() + 60 * 60 * 1000);
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const categoryMeta = getScheduleCategoryMeta(category);
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          summary: title,
+          location: location?.trim() || undefined,
+          description: note?.trim() || undefined,
+          colorId: categoryMeta.googleColorId,
+          extendedProperties: {
+            private: {
+              diaryOsCategory: category,
+            },
+          },
+          start: { dateTime: startAt.toISOString(), timeZone },
+          end: { dateTime: safeEndAt.toISOString(), timeZone },
+        }),
+      },
+    );
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`Google 일정 추가 실패(${res.status}): ${detail.slice(0, 120)}`);
+    }
+    const created = (await res.json()) as { id?: string };
+    return { eventId: created.id ?? "", calendarId };
+  }
+
+  async function updateGoogleEvent(
+    token: string,
+    calendarId: string,
+    eventId: string,
+    title: string,
+    date: string,
+    startTime: string,
+    endTime: string,
+    category: ScheduleCategory,
+    location?: string,
+    note?: string,
+  ) {
+    const [hour, minute] = startTime.split(":");
+    const [endHour, endMinute] = endTime.split(":");
+    const startAt = new Date(`${date}T${hour}:${minute}:00`);
+    const endAt = new Date(`${date}T${endHour}:${endMinute}:00`);
+    const safeEndAt = endAt > startAt ? endAt : new Date(startAt.getTime() + 60 * 60 * 1000);
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const categoryMeta = getScheduleCategoryMeta(category);
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
       {
@@ -1059,6 +1165,12 @@ function HomePage() {
           summary: title,
           location: location?.trim() || undefined,
           description: note?.trim() || undefined,
+          colorId: categoryMeta.googleColorId,
+          extendedProperties: {
+            private: {
+              diaryOsCategory: category,
+            },
+          },
           start: { dateTime: startAt.toISOString(), timeZone },
           end: { dateTime: safeEndAt.toISOString(), timeZone },
         }),
@@ -1075,11 +1187,32 @@ function HomePage() {
     date: string;
     startTime: string;
     endTime: string;
+    category: ScheduleCategory;
     location: string;
     note: string;
   }) {
     const value = payload.title.trim();
     if (!value) return;
+    let createdGoogle: { eventId: string; calendarId: string } | null = null;
+    if (googleAccessToken) {
+      try {
+        createdGoogle = await createGoogleEvent(
+          googleAccessToken,
+          googleTargetCalendarId || "primary",
+          value,
+          payload.date,
+          payload.startTime,
+          payload.endTime,
+          payload.category,
+          payload.location,
+          payload.note,
+        );
+      } catch (error) {
+        setGoogleError(
+          error instanceof Error ? error.message : "Google 일정 추가에 실패했어요.",
+        );
+      }
+    }
     setScheduleItems((prev) => [
       ...prev,
       {
@@ -1088,10 +1221,24 @@ function HomePage() {
         date: payload.date,
         time: payload.startTime,
         endTime: payload.endTime,
+        category: payload.category,
         location: payload.location.trim(),
         note: payload.note.trim(),
+        googleCalendarId: createdGoogle?.calendarId,
+        googleEventId: createdGoogle?.eventId,
       },
     ]);
+    if (googleAccessToken) {
+      const range = getViewDateRange(scheduleDateInput, scheduleViewMode);
+      await syncGoogleTodayEvents(
+        googleAccessToken,
+        undefined,
+        range.start,
+        range.end,
+        range.label,
+        googleCalendarFilterIds,
+      );
+    }
   }
 
   async function addSchedule(e: FormEvent<HTMLFormElement>) {
@@ -1105,6 +1252,7 @@ function HomePage() {
         date: scheduleDateInput,
         startTime: scheduleTimeInput,
         endTime: scheduleEndTimeInput,
+        category: scheduleCategoryInput,
         location: scheduleLocationInput,
         note: scheduleNoteInput,
       });
@@ -1114,6 +1262,7 @@ function HomePage() {
     setScheduleTitleInput("");
     setScheduleLocationInput("");
     setScheduleNoteInput("");
+    setScheduleCategoryInput("default");
   }
 
   async function fetchGoogleCalendarList(token: string) {
@@ -1135,6 +1284,10 @@ function HomePage() {
           summary: item.summary!,
           backgroundColor: item.backgroundColor,
         })) ?? [];
+    if (calendars.length > 0 && !calendars.some((item) => item.id === googleTargetCalendarId)) {
+      const primary = calendars.find((item) => item.id === "primary");
+      setGoogleTargetCalendarId((primary ?? calendars[0]).id);
+    }
     setGoogleCalendarFilterIds((prev) => {
       if (calendars.length === 0) return [];
       if (prev.length === 0) return calendars.map((item) => item.id);
@@ -1210,8 +1363,10 @@ function HomePage() {
             items?: Array<{
               id?: string;
               summary?: string;
+              colorId?: string;
               location?: string;
               description?: string;
+              extendedProperties?: { private?: { diaryOsCategory?: string } };
               start?: { date?: string; dateTime?: string };
               end?: { date?: string; dateTime?: string };
             }>;
@@ -1232,6 +1387,10 @@ function HomePage() {
                 endTime,
                 location: event.location ?? "",
                 note: event.description ?? "",
+                category: getCategoryFromGoogleEvent(
+                  event.colorId,
+                  event.extendedProperties?.private?.diaryOsCategory,
+                ),
                 source: "google",
                 calendarName: cal.summary,
                 calendarColor: cal.backgroundColor,
@@ -1356,6 +1515,7 @@ function disconnectGoogleCalendar() {
     setScheduleEditEndTimeInput(item.endTime && item.endTime !== "종일" ? item.endTime : "10:00");
     setScheduleEditLocationInput(item.location ?? "");
     setScheduleEditNoteInput(item.note ?? "");
+    setScheduleEditCategoryInput(item.category ?? "default");
   }
 
   function closeScheduleEdit() {
@@ -1389,6 +1549,7 @@ function disconnectGoogleCalendar() {
           nextDate,
           nextTime,
           nextEndTime,
+          scheduleEditCategoryInput,
           scheduleEditLocationInput,
           scheduleEditNoteInput,
         );
@@ -1404,6 +1565,7 @@ function disconnectGoogleCalendar() {
                   date: nextDate,
                   time: nextTime,
                   endTime: nextEndTime,
+                  category: scheduleEditCategoryInput,
                   location: scheduleEditLocationInput.trim(),
                   note: scheduleEditNoteInput.trim(),
                 }
@@ -1420,6 +1582,7 @@ function disconnectGoogleCalendar() {
                   date: nextDate,
                   time: nextTime,
                   endTime: nextEndTime,
+                  category: scheduleEditCategoryInput,
                   location: scheduleEditLocationInput.trim(),
                   note: scheduleEditNoteInput.trim(),
                 }
@@ -1503,12 +1666,14 @@ function disconnectGoogleCalendar() {
         date: startDate,
         startTime,
         endTime,
+        category: scheduleCategoryInput,
         location: activeTracking.location,
         note: activeTracking.note,
       });
       setScheduleTitleInput("");
       setScheduleLocationInput("");
       setScheduleNoteInput("");
+      setScheduleCategoryInput("default");
       setActiveTracking(null);
     } finally {
       setScheduleSubmitting(false);
@@ -2165,6 +2330,35 @@ function disconnectGoogleCalendar() {
             value={scheduleLocationInput}
             onChange={(e) => setScheduleLocationInput(e.target.value)}
           />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <select
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+              value={scheduleCategoryInput}
+              onChange={(e) => setScheduleCategoryInput(e.target.value as ScheduleCategory)}
+            >
+              {SCHEDULE_CATEGORY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  카테고리: {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+              value={googleTargetCalendarId}
+              onChange={(e) => setGoogleTargetCalendarId(e.target.value)}
+              disabled={!googleAccessToken || googleCalendars.length === 0}
+            >
+              {googleCalendars.length === 0 ? (
+                <option value="primary">Google 캘린더 선택</option>
+              ) : (
+                googleCalendars.map((calendar) => (
+                  <option key={calendar.id} value={calendar.id}>
+                    Google 저장: {calendar.summary}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
           <textarea
             className="min-h-[72px] w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
             placeholder="메모 (선택)"
@@ -2266,6 +2460,17 @@ function disconnectGoogleCalendar() {
             onChange={(e) => setScheduleEditLocationInput(e.target.value)}
             placeholder="위치 (선택)"
           />
+          <select
+            className="w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+            value={scheduleEditCategoryInput}
+            onChange={(e) => setScheduleEditCategoryInput(e.target.value as ScheduleCategory)}
+          >
+            {SCHEDULE_CATEGORY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                카테고리: {option.label}
+              </option>
+            ))}
+          </select>
           <textarea
             className="min-h-[72px] w-full rounded-md border border-[#dddddd] bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
             value={scheduleEditNoteInput}
@@ -2442,6 +2647,14 @@ function disconnectGoogleCalendar() {
                       `${item.time} ${item.title}`}
                   </span>
                   <div className="flex items-center gap-1">
+                    {item.category && item.category !== "default" ? (
+                      <span
+                        className="inline-flex items-center rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[10px] text-[#444444]"
+                        style={{ borderColor: getScheduleCategoryMeta(item.category).accent }}
+                      >
+                        {getScheduleCategoryMeta(item.category).label}
+                      </span>
+                    ) : null}
                     {item.source === "google" ? (
                       <span className="inline-flex items-center gap-1 rounded-md border border-[#dddddd] bg-white px-2 py-0.5 text-[10px] text-[#444444]">
                         <span
