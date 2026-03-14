@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { getPreferredSyncEmail, runSmartSync } from "@/lib/cloud-sync";
 import { useUiThemeSettings } from "@/lib/ui-theme";
 import { useGoogleToken } from "@/lib/useGoogleToken";
 
@@ -650,7 +651,11 @@ function HomePage() {
   const [googleSyncInfo, setGoogleSyncInfo] = useState<string | null>(null);
   const hasAutoSyncedOnEntryRef = useRef(false);
   const wasSchedulePanelOpenRef = useRef(false);
+  const hasMountedRoutineSyncRef = useRef(false);
+  const routineSyncingRef = useRef(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
   useEffect(() => {
     localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos));
@@ -659,6 +664,27 @@ function HomePage() {
   useEffect(() => {
     localStorage.setItem(ROUTINE_STORAGE_KEY, JSON.stringify(routines));
   }, [routines]);
+
+  useEffect(() => {
+    if (!hasMountedRoutineSyncRef.current) {
+      hasMountedRoutineSyncRef.current = true;
+      return;
+    }
+    const email = getPreferredSyncEmail();
+    if (!email || !supabaseUrl || !supabaseAnon) return;
+    if (routineSyncingRef.current) return;
+
+    routineSyncingRef.current = true;
+    void runSmartSync({
+      userEmail: email,
+      supabaseUrl,
+      supabaseAnon,
+    }).catch(() => {
+      // keep routine sync silent in the dashboard
+    }).finally(() => {
+      routineSyncingRef.current = false;
+    });
+  }, [routines, supabaseUrl, supabaseAnon]);
 
   useEffect(() => {
     localStorage.setItem(ONETHING_STORAGE_KEY, JSON.stringify(oneThing));
